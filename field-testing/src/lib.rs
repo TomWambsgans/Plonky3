@@ -232,6 +232,40 @@ where
     assert_eq!((x * y) / z, x * (y / z));
 }
 
+pub fn test_mul_2exp_u64<R: PrimeCharacteristicRing + Eq>()
+where
+    StandardUniform: Distribution<R>,
+{
+    let mut rng = rand::rng();
+    let x = rng.random::<R>();
+    assert_eq!(x.mul_2exp_u64(0), x);
+    assert_eq!(x.mul_2exp_u64(1), x.double());
+    for i in 0..128 {
+        assert_eq!(
+            x.clone().mul_2exp_u64(i),
+            x.clone() * R::from_u128(1_u128 << i)
+        );
+    }
+}
+
+pub fn test_div_2exp_u64<F: Field>()
+where
+    StandardUniform: Distribution<F>,
+{
+    let mut rng = rand::rng();
+    let x = rng.random::<F>();
+    assert_eq!(x.div_2exp_u64(0), x);
+    assert_eq!(x.div_2exp_u64(1), x.halve());
+    for i in 0..128 {
+        assert_eq!(x.mul_2exp_u64(i).div_2exp_u64(i), x);
+        assert_eq!(
+            x.div_2exp_u64(i),
+            // Best to invert in the prime subfield in case F is an extension field.
+            x * F::from_prime_subfield(F::PrimeSubfield::from_u128(1_u128 << i).inverse())
+        );
+    }
+}
+
 pub fn test_inverse<F: Field>()
 where
     StandardUniform: Distribution<F>,
@@ -590,6 +624,14 @@ macro_rules! test_field {
             fn test_generator() {
                 $crate::test_generator::<$field>($factors);
             }
+            #[test]
+            fn test_mul_2exp_u64() {
+                $crate::test_mul_2exp_u64::<$field>();
+            }
+            #[test]
+            fn test_div_2exp_u64() {
+                $crate::test_div_2exp_u64::<$field>();
+            }
         }
     };
 }
@@ -788,38 +830,4 @@ macro_rules! test_two_adic_extension_field {
             }
         }
     };
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::vec;
-    use alloc::vec::Vec;
-
-    use p3_baby_bear::BabyBear;
-    use p3_field::extension::{BinomialExtensionField, HasFrobenius};
-    use p3_field::{PrimeCharacteristicRing, binomial_expand, eval_poly};
-    use rand::random;
-
-    use super::*;
-
-    #[test]
-    fn test_minimal_poly() {
-        type F = BabyBear;
-        type EF = BinomialExtensionField<F, 4>;
-        for _ in 0..1024 {
-            let x: EF = random();
-            let m: Vec<EF> = x.minimal_poly().into_iter().map(Into::<EF>::into).collect();
-            assert!(eval_poly(&m, x).is_zero());
-        }
-    }
-
-    #[test]
-    fn test_binomial_expand() {
-        type F = BabyBear;
-        // (x - 1)(x - 2) = x^2 - 3x + 2
-        assert_eq!(
-            binomial_expand(&[F::ONE, F::TWO]),
-            vec![F::TWO, -F::from_u8(3), F::ONE]
-        );
-    }
 }
