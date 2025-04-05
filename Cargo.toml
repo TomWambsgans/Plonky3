@@ -64,6 +64,7 @@ tracing-forest = "0.1.6"
 tracing-subscriber = "0.3.17"
 transpose = "0.2.3"
 zkhash = { git = "https://github.com/HorizenLabs/poseidon2" }
+cudarc = { version = "0.14.0", features = ["cuda-12040", "driver"]}
 
 # Local dependencies
 p3-air = { path = "air", version = "0.1.0" }

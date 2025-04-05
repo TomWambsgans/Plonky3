@@ -6,6 +6,7 @@ use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::mem::transmute;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
+use cudarc::driver::DeviceRepr;
 
 use num_bigint::BigUint;
 use p3_field::exponentiation::exp_10540996611094048183;
@@ -32,6 +33,8 @@ pub struct Goldilocks {
     /// Not necessarily canonical.
     pub(crate) value: u64,
 }
+
+unsafe impl DeviceRepr for Goldilocks {}
 
 impl Goldilocks {
     pub(crate) const fn new(value: u64) -> Self {

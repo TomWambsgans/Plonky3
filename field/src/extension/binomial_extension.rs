@@ -6,6 +6,7 @@ use core::fmt::{self, Debug, Display, Formatter};
 use core::iter::{Product, Sum};
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use cudarc::driver::DeviceRepr;
 
 use itertools::Itertools;
 use num_bigint::BigUint;
@@ -205,6 +206,11 @@ where
 }
 
 impl<F: BinomiallyExtendable<D>, const D: usize> Algebra<F> for BinomialExtensionField<F, D> {}
+
+unsafe impl<F: BinomiallyExtendable<D>, const D: usize> DeviceRepr
+    for BinomialExtensionField<F, D>
+{
+}
 
 impl<F: BinomiallyExtendable<D>, const D: usize> Field for BinomialExtensionField<F, D> {
     type Packing = Self;

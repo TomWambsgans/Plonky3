@@ -6,6 +6,7 @@ use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::mem::transmute;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
+use cudarc::driver::DeviceRepr;
 
 use num_bigint::BigUint;
 use p3_field::exponentiation::exp_1717986917;
@@ -30,6 +31,7 @@ pub struct Mersenne31 {
     /// Not necessarily canonical, but must fit in 31 bits.
     pub(crate) value: u32,
 }
+unsafe impl DeviceRepr for Mersenne31 {}
 
 impl Mersenne31 {
     /// Convert a u32 element into a Mersenne31 element.

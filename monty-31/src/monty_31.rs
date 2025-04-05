@@ -8,6 +8,7 @@ use core::iter::{Product, Sum};
 use core::marker::PhantomData;
 use core::mem::transmute;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
+use cudarc::driver::DeviceRepr;
 
 use num_bigint::BigUint;
 use p3_field::integers::QuotientMap;
@@ -34,6 +35,8 @@ pub struct MontyField31<MP: MontyParameters> {
     pub(crate) value: u32,
     _phantom: PhantomData<MP>,
 }
+
+unsafe impl<MP: MontyParameters> DeviceRepr for MontyField31<MP> {}
 
 impl<MP: MontyParameters> MontyField31<MP> {
     /// The standard way to crate a new element.

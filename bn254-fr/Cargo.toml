@@ -15,6 +15,7 @@ paste.workspace = true
 rand.workspace = true
 serde = { workspace = true, features = ["derive"] }
 halo2curves = { workspace = true, features = ["bits", "derive_serde"] }
+cudarc.workspace = true
 
 [dev-dependencies]
 p3-field-testing.workspace = true

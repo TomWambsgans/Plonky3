@@ -568,6 +568,7 @@ pub trait Field:
     + Display
     + Serialize
     + DeserializeOwned
+    + cudarc::driver::DeviceRepr
 {
     type Packing: PackedField<Scalar = Self>;
 
