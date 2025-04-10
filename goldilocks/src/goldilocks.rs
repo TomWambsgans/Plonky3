@@ -237,6 +237,10 @@ impl Field for Goldilocks {
     // Sage: GF(2^64 - 2^32 + 1).multiplicative_generator()
     const GENERATOR: Self = Self::new(7);
 
+    fn random<R: Rng>(rng: &mut R) -> Self {
+        rng.random()
+    }
+
     fn is_zero(&self) -> bool {
         self.value == 0 || self.value == Self::ORDER_U64
     }

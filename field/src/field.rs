@@ -5,6 +5,7 @@ use core::hash::Hash;
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::slice;
+use rand::Rng;
 
 use num_bigint::BigUint;
 use serde::Serialize;
@@ -574,6 +575,8 @@ pub trait Field:
 
     /// A generator of this field's multiplicative group.
     const GENERATOR: Self;
+
+    fn random<R: Rng>(rng: &mut R) -> Self;
 
     /// Check if the given field element is equal to the unique additive identity (ZERO).
     #[must_use]

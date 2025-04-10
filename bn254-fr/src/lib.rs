@@ -131,6 +131,10 @@ impl Field for Bn254Fr {
     // generator is 5
     const GENERATOR: Self = Self::new(FFBn254Fr::from_raw([5u64, 0, 0, 0]));
 
+    fn random<R: Rng>(rng: &mut R) -> Self {
+        rng.random()
+    }
+
     fn is_zero(&self) -> bool {
         self.value.is_zero().into()
     }

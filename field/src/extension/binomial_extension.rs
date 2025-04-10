@@ -217,6 +217,14 @@ impl<F: BinomiallyExtendable<D>, const D: usize> Field for BinomialExtensionFiel
 
     const GENERATOR: Self = Self::new(F::EXT_GENERATOR);
 
+    fn random<R: rand::Rng>(rng: &mut R) -> Self {
+        let mut res = [F::ZERO; D];
+        for r in &mut res {
+            *r = F::random(rng);
+        }
+        Self::from_basis_coefficients_slice(&res)
+    }
+
     fn try_inverse(&self) -> Option<Self> {
         if self.is_zero() {
             return None;

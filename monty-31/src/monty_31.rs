@@ -262,6 +262,10 @@ impl<FP: FieldParameters> Field for MontyField31<FP> {
 
     const GENERATOR: Self = FP::MONTY_GEN;
 
+    fn random<R: Rng>(rng: &mut R) -> Self {
+        rng.random()
+    }
+
     fn try_inverse(&self) -> Option<Self> {
         FP::try_inverse(*self)
     }
