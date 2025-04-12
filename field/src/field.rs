@@ -570,6 +570,7 @@ pub trait Field:
     + Serialize
     + DeserializeOwned
     + cudarc::driver::DeviceRepr
+    + cudarc::driver::ValidAsZeroBits
 {
     type Packing: PackedField<Scalar = Self>;
 
