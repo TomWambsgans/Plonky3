@@ -107,15 +107,10 @@ impl BinomialExtensionData<8> for KoalaBearParameters {
     const W: KoalaBear = KoalaBear::new(3);
     const DTH_ROOT: KoalaBear = KoalaBear::new(1748172362);
     const EXT_GENERATOR: [KoalaBear; 8] = KoalaBear::new_array([5, 2, 0, 0, 0, 0, 0, 0]);
-    const EXT_TWO_ADICITY: usize = 27;
+    const EXT_TWO_ADICITY: usize = 24;
 
-    type ArrayLike = [[KoalaBear; 8]; 3];
-
-    const TWO_ADIC_EXTENSION_GENERATORS: Self::ArrayLike = KoalaBear::new_2d_array([
-        [0, 0, 1759267465, 0, 0, 0, 0, 0],
-        [0, 0, 0, 777715144, 0, 0, 0, 0],
-        [0, 0, 0, 77606336, 0, 0, 0, 0],
-    ]);
+    type ArrayLike = [[KoalaBear; 8]; 0];
+    const TWO_ADIC_EXTENSION_GENERATORS: Self::ArrayLike = [];
 }
 #[cfg(test)]
 mod tests {
@@ -228,4 +223,14 @@ mod tests {
     test_prime_field!(crate::KoalaBear);
     test_prime_field_64!(crate::KoalaBear, &super::ZEROS, &super::ONES);
     test_prime_field_32!(crate::KoalaBear, &super::ZEROS, &super::ONES);
+
+    #[test]
+    fn test_sqrt() {
+        let f: BinomialExtensionField<F, 4> =
+            BinomialExtensionField::<F, 4>::from_i128(478551454154549888835454510);
+        let result = p3_field::ff_sqrt(f);
+        assert!(result.is_some());
+        let root = result.unwrap();
+        assert_eq!(root * root, f);
+    }
 }

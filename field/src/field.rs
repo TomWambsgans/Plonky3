@@ -958,3 +958,87 @@ impl<R: PrimeCharacteristicRing> Iterator for Powers<R> {
         Some(result)
     }
 }
+
+use num_traits::One;
+
+fn pow_biguint<F: Field>(base: &F, exp: &BigUint) -> F {
+    let mut result = F::ONE;
+    let mut acc = *base;
+
+    for i in 0..exp.bits() {
+        if exp.bit(i) {
+            result *= acc;
+        }
+        acc = acc.square();
+    }
+    result
+}
+
+pub fn ff_sqrt<F>(f: F) -> Option<F>
+where
+    F: Field + TwoAdicField,
+{
+    // 0 has exactly one square root.
+    if f.is_zero() {
+        return Some(F::ZERO);
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // Pre-computation that only depends on the *field*.
+    // |F| = q,  q − 1 = 2^s ⋅ t  with  t odd
+    // s = TWO_ADICITY,  generator g produces an element of order 2^s
+    // ──────────────────────────────────────────────────────────
+    let s = F::TWO_ADICITY;
+    debug_assert!(s > 0, "field of even characteristic unsupported");
+
+    let q_minus_one = F::order() - 1u32; // q − 1
+    let t = &q_minus_one >> s; // odd component t
+    let legendre_exp = &q_minus_one >> 1; // (q − 1)/2
+
+    // Quick quadratic-residue test (Legendre symbol).
+    if pow_biguint(&f, &legendre_exp) != F::ONE {
+        return None;
+    }
+
+    // A *quadratic non-residue* of order 2^s.
+    // For a primitive generator g of the full multiplicative group,
+    // g^t has exactly that order.
+    let c = {
+        let g = F::GENERATOR;
+        pow_biguint(&g, &t)
+    };
+
+    // ──────────────────────────────────────────────────────────
+    // Main Tonelli–Shanks iteration
+    // ──────────────────────────────────────────────────────────
+    let mut r = s; // current 2-power
+    let mut x = {
+        //  x = f^{(t+1)/2}
+        let e = (&t + 1u32) >> 1;
+        pow_biguint(&f, &e)
+    };
+    let mut b = pow_biguint(&f, &t); // b = f^t
+    let mut cc = c; // c^{2^{k}}, updated each loop
+
+    while !b.is_one() {
+        // Find the smallest m in (0, r) such that b^{2^m} = 1
+        let mut m = 1usize;
+        let mut b2m = b.square();
+        while m < r && !b2m.is_one() {
+            b2m = b2m.square();
+            m += 1;
+        }
+
+        // d = c^{2^{r-m-1}}
+        let exp_d: BigUint = (BigUint::one()) << (r - m - 1);
+        let d = pow_biguint(&cc, &exp_d);
+
+        x *= d; // new potential square root
+        let d2 = d.square();
+        b *= d2; // b ← b·d²  (still ≡ f^{t} mod squares)
+        cc = d2; // c ← d²
+        r = m;
+    }
+
+    Some(x)
+}
