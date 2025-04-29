@@ -155,8 +155,11 @@ where
     // If our packing width did not divide max_height, fall back to single-threaded scalar code
     // for the last bit.
     #[allow(clippy::needless_range_loop)]
-    for i in (max_height / width * width)..max_height {
-        digests[i] = h.hash_iter(tallest_matrices.iter().flat_map(|m| m.row(i)));
+    for i in ((max_height / width) * width)..max_height {
+        unsafe {
+            // Safety: Clearly i < max_height = m.height().
+            digests[i] = h.hash_iter(tallest_matrices.iter().flat_map(|m| m.row_unchecked(i)));
+        }
     }
 
     // Everything has been initialized so we can safely cast.
@@ -192,6 +195,7 @@ where
     let next_len_padded = if prev_layer.len() == 2 {
         1
     } else {
+        // Round prev_layer.len() / 2 up to the next even integer.
         (prev_layer.len() / 2 + 1) & !1
     };
 
@@ -222,7 +226,10 @@ where
         let left = prev_layer[2 * i];
         let right = prev_layer[2 * i + 1];
         let digest = c.compress([left, right]);
-        let rows_digest = h.hash_iter(matrices_to_inject.iter().flat_map(|m| m.row(i)));
+        let rows_digest = unsafe {
+            // Safety: Clearly i < next_len = m.height().
+            h.hash_iter(matrices_to_inject.iter().flat_map(|m| m.row_unchecked(i)))
+        };
         next_digests[i] = c.compress([digest, rows_digest]);
     }
 
@@ -255,6 +262,7 @@ where
     let next_len_padded = if prev_layer.len() == 2 {
         1
     } else {
+        // Round prev_layer.len() / 2 up to the next even integer.
         (prev_layer.len() / 2 + 1) & !1
     };
     let next_len = prev_layer.len() / 2;
@@ -298,7 +306,8 @@ fn unpack_array<P: PackedValue, const N: usize>(
 #[cfg(test)]
 mod tests {
     use p3_symmetric::PseudoCompressionFunction;
-    use rand::Rng;
+    use rand::rngs::SmallRng;
+    use rand::{Rng, SeedableRng};
 
     use super::*;
 
@@ -342,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_compress_random_values() {
-        let mut rng = rand::rng();
+        let mut rng = SmallRng::seed_from_u64(1);
         let prev_layer: Vec<[u8; 32]> = (0..8).map(|_| rng.random()).collect();
         let compressor = DummyCompressionFunction;
         let expected: Vec<[u8; 32]> = prev_layer

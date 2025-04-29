@@ -1,4 +1,3 @@
-use alloc::borrow::Cow;
 use alloc::collections::BTreeMap;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -11,11 +10,12 @@ use p3_field::extension::ComplexExtendable;
 use p3_field::{ExtensionField, Field};
 use p3_fri::FriConfig;
 use p3_fri::verifier::FriError;
-use p3_matrix::dense::{DenseMatrix, RowMajorMatrix};
+use p3_matrix::dense::{RowMajorMatrix, RowMajorMatrixCow};
 use p3_matrix::row_index_mapped::RowIndexMappedView;
 use p3_matrix::{Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
+use p3_util::zip_eq::zip_eq;
 use serde::{Deserialize, Serialize};
 use tracing::info_span;
 
@@ -68,6 +68,7 @@ pub struct CircleInputProof<
 pub enum InputError<InputMmcsError, FriMmcsError> {
     InputMmcsError(InputMmcsError),
     FirstLayerMmcsError(FriMmcsError),
+    InputShapeError,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -104,9 +105,10 @@ where
     type Domain = CircleDomain<Val>;
     type Commitment = InputMmcs::Commitment;
     type ProverData = InputMmcs::ProverData<RowMajorMatrix<Val>>;
-    type EvaluationsOnDomain<'a> = RowIndexMappedView<CfftPerm, DenseMatrix<Val, Cow<'a, [Val]>>>;
+    type EvaluationsOnDomain<'a> = RowIndexMappedView<CfftPerm, RowMajorMatrixCow<'a, Val>>;
     type Proof = CirclePcsProof<Val, Challenge, InputMmcs, FriMmcs, Challenger::Witness>;
     type Error = FriError<FriMmcs::Error, InputError<InputMmcs::Error, FriMmcs::Error>>;
+    const ZK: bool = false;
 
     fn natural_domain_for_degree(&self, degree: usize) -> Self::Domain {
         CircleDomain::standard(log2_strict_usize(degree))
@@ -114,7 +116,7 @@ where
 
     fn commit(
         &self,
-        evaluations: Vec<(Self::Domain, RowMajorMatrix<Val>)>,
+        evaluations: impl IntoIterator<Item = (Self::Domain, RowMajorMatrix<Val>)>,
     ) -> (Self::Commitment, Self::ProverData) {
         let ldes = evaluations
             .into_iter()
@@ -402,7 +404,7 @@ where
             challenger,
             |index, input_proof| {
                 // log_height -> (alpha_offset, ro)
-                let mut reduced_openings = BTreeMap::<usize, (Challenge, Challenge)>::new();
+                let mut reduced_openings = BTreeMap::new();
 
                 let CircleInputProof {
                     input_openings,
@@ -410,7 +412,9 @@ where
                     first_layer_proof,
                 } = input_proof;
 
-                for (batch_opening, (batch_commit, mats)) in izip!(input_openings, &rounds) {
+                for (batch_opening, (batch_commit, mats)) in
+                    zip_eq(input_openings, &rounds, InputError::InputShapeError)?
+                {
                     let batch_heights: Vec<usize> = mats
                         .iter()
                         .map(|(domain, _)| (domain.size() << self.fri_config.log_blowup))
@@ -443,9 +447,11 @@ where
                         )
                         .map_err(InputError::InputMmcsError)?;
 
-                    for (ps_at_x, (mat_domain, mat_points_and_values)) in
-                        izip!(&batch_opening.opened_values, mats)
-                    {
+                    for (ps_at_x, (mat_domain, mat_points_and_values)) in zip_eq(
+                        &batch_opening.opened_values,
+                        mats,
+                        InputError::InputShapeError,
+                    )? {
                         let log_height = mat_domain.log_n + self.fri_config.log_blowup;
                         let bits_reduced = log_global_max_height - log_height;
                         let orig_idx = cfft_permute_index(index >> bits_reduced, log_height);
@@ -471,43 +477,50 @@ where
 
                 // Verify bivariate fold and lambda correction
 
-                let (mut fri_input, fl_dims, fl_leaves): (Vec<_>, Vec<_>, Vec<_>) =
-                    izip!(reduced_openings, first_layer_siblings, &proof.lambdas)
-                        .map(|((log_height, (_, ro)), &fl_sib, &lambda)| {
-                            assert!(log_height > 0);
+                let (mut fri_input, fl_dims, fl_leaves): (Vec<_>, Vec<_>, Vec<_>) = zip_eq(
+                    zip_eq(
+                        reduced_openings,
+                        first_layer_siblings,
+                        InputError::InputShapeError,
+                    )?,
+                    &proof.lambdas,
+                    InputError::InputShapeError,
+                )?
+                .map(|(((log_height, (_, ro)), &fl_sib), &lambda)| {
+                    assert!(log_height > 0);
 
-                            let orig_size = log_height - self.fri_config.log_blowup;
-                            let bits_reduced = log_global_max_height - log_height;
-                            let orig_idx = cfft_permute_index(index >> bits_reduced, log_height);
+                    let orig_size = log_height - self.fri_config.log_blowup;
+                    let bits_reduced = log_global_max_height - log_height;
+                    let orig_idx = cfft_permute_index(index >> bits_reduced, log_height);
 
-                            let lde_domain = CircleDomain::standard(log_height);
-                            let p: Point<Val> = lde_domain.nth_point(orig_idx);
+                    let lde_domain = CircleDomain::standard(log_height);
+                    let p: Point<Val> = lde_domain.nth_point(orig_idx);
 
-                            let lambda_corrected = ro - lambda * p.v_n(orig_size);
+                    let lambda_corrected = ro - lambda * p.v_n(orig_size);
 
-                            let mut fl_values = vec![lambda_corrected; 2];
-                            fl_values[((index >> bits_reduced) & 1) ^ 1] = fl_sib;
+                    let mut fl_values = vec![lambda_corrected; 2];
+                    fl_values[((index >> bits_reduced) & 1) ^ 1] = fl_sib;
 
-                            let fri_input = (
-                                // - 1 here is because we have already folded a layer.
-                                log_height - 1,
-                                fold_y_row(
-                                    index >> (bits_reduced + 1),
-                                    // - 1 here is log_arity.
-                                    log_height - 1,
-                                    bivariate_beta,
-                                    fl_values.iter().copied(),
-                                ),
-                            );
+                    let fri_input = (
+                        // - 1 here is because we have already folded a layer.
+                        log_height - 1,
+                        fold_y_row(
+                            index >> (bits_reduced + 1),
+                            // - 1 here is log_arity.
+                            log_height - 1,
+                            bivariate_beta,
+                            fl_values.iter().copied(),
+                        ),
+                    );
 
-                            let fl_dims = Dimensions {
-                                width: 0,
-                                height: 1 << (log_height - 1),
-                            };
+                    let fl_dims = Dimensions {
+                        width: 0,
+                        height: 1 << (log_height - 1),
+                    };
 
-                            (fri_input, fl_dims, fl_values)
-                        })
-                        .multiunzip();
+                    (fri_input, fl_dims, fl_values)
+                })
+                .multiunzip();
 
                 // sort descending
                 fri_input.reverse();
@@ -538,9 +551,9 @@ mod tests {
     use p3_keccak::Keccak256Hash;
     use p3_merkle_tree::MerkleTreeMmcs;
     use p3_mersenne_31::Mersenne31;
-    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher};
+    use rand::rngs::SmallRng;
     use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha8Rng;
 
     use super::*;
 
@@ -548,13 +561,13 @@ mod tests {
     fn circle_pcs() {
         // Very simple pcs test. More rigorous tests in p3_fri/tests/pcs.
 
-        let mut rng = ChaCha8Rng::from_seed([0; 32]);
+        let mut rng = SmallRng::seed_from_u64(0);
 
         type Val = Mersenne31;
         type Challenge = BinomialExtensionField<Mersenne31, 3>;
 
         type ByteHash = Keccak256Hash;
-        type FieldHash = SerializingHasher32<ByteHash>;
+        type FieldHash = SerializingHasher<ByteHash>;
         let byte_hash = ByteHash {};
         let field_hash = FieldHash::new(byte_hash);
 
@@ -569,7 +582,7 @@ mod tests {
 
         type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
 
-        let fri_config = create_test_fri_config(challenge_mmcs);
+        let fri_config = create_test_fri_config(challenge_mmcs, 0);
 
         type Pcs = CirclePcs<Val, ValMmcs, ChallengeMmcs>;
         let pcs = Pcs {
@@ -588,7 +601,7 @@ mod tests {
         let evals = RowMajorMatrix::rand(&mut rng, 1 << log_n, 1);
 
         let (comm, data) =
-            <Pcs as p3_commit::Pcs<Challenge, Challenger>>::commit(&pcs, vec![(d, evals)]);
+            <Pcs as p3_commit::Pcs<Challenge, Challenger>>::commit(&pcs, [(d, evals)]);
 
         let zeta: Challenge = rng.random();
 

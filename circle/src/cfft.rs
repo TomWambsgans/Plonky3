@@ -96,7 +96,7 @@ impl<F: ComplexExtendable, M: Matrix<F>> CircleEvaluations<F, M> {
         target_domain: CircleDomain<F>,
     ) -> CircleEvaluations<F, RowMajorMatrix<F>> {
         assert!(target_domain.log_n >= self.domain.log_n);
-        CircleEvaluations::<F>::evaluate(target_domain, self.interpolate())
+        CircleEvaluations::evaluate(target_domain, self.interpolate())
     }
 
     pub fn evaluate_at_point<EF: ExtensionField<F>>(&self, point: Point<EF>) -> Vec<EF> {
@@ -280,7 +280,8 @@ mod tests {
     use itertools::iproduct;
     use p3_field::extension::BinomialExtensionField;
     use p3_mersenne_31::Mersenne31;
-    use rand::{random, rng};
+    use rand::rngs::SmallRng;
+    use rand::{Rng, SeedableRng};
 
     use super::*;
 
@@ -289,10 +290,11 @@ mod tests {
 
     #[test]
     fn test_cfft_icfft() {
+        let mut rng = SmallRng::seed_from_u64(1);
         for (log_n, width) in iproduct!(2..5, [1, 4, 11]) {
-            let shift = Point::generator(F::CIRCLE_TWO_ADICITY) * (random::<u16>() as usize);
-            let domain = CircleDomain::<F>::new(log_n, shift);
-            let trace = RowMajorMatrix::<F>::rand(&mut rng(), 1 << log_n, width);
+            let shift = Point::generator(F::CIRCLE_TWO_ADICITY) * (rng.random::<u16>() as usize);
+            let domain = CircleDomain::new(log_n, shift);
+            let trace = RowMajorMatrix::<F>::rand(&mut rng, 1 << log_n, width);
             let coeffs = CircleEvaluations::from_natural_order(domain, trace.clone()).interpolate();
             assert_eq!(
                 CircleEvaluations::evaluate(domain, coeffs.clone())
@@ -303,7 +305,7 @@ mod tests {
             );
             for (i, pt) in domain.points().enumerate() {
                 assert_eq!(
-                    &*trace.row_slice(i),
+                    &*trace.row_slice(i).unwrap(),
                     coeffs.columnwise_dot_product(&circle_basis(pt, log_n)),
                     "coeffs can be evaluated with circle_basis",
                 );
@@ -313,10 +315,11 @@ mod tests {
 
     #[test]
     fn test_extrapolation() {
+        let mut rng = SmallRng::seed_from_u64(1);
         for (log_n, log_blowup) in iproduct!(2..5, [1, 2, 3]) {
             let evals = CircleEvaluations::<F>::from_natural_order(
                 CircleDomain::standard(log_n),
-                RowMajorMatrix::rand(&mut rng(), 1 << log_n, 11),
+                RowMajorMatrix::rand(&mut rng, 1 << log_n, 11),
             );
             let lde = evals
                 .clone()
@@ -326,23 +329,27 @@ mod tests {
             let lde_coeffs = lde.interpolate();
 
             for r in 0..coeffs.height() {
-                assert_eq!(&*coeffs.row_slice(r), &*lde_coeffs.row_slice(r));
+                assert_eq!(
+                    &*coeffs.row_slice(r).unwrap(),
+                    &*lde_coeffs.row_slice(r).unwrap()
+                );
             }
             for r in coeffs.height()..lde_coeffs.height() {
-                assert!(lde_coeffs.row(r).all(|x| x.is_zero()));
+                assert!(lde_coeffs.row(r).unwrap().into_iter().all(|x| x.is_zero()));
             }
         }
     }
 
     #[test]
     fn eval_at_point_matches_cfft() {
+        let mut rng = SmallRng::seed_from_u64(1);
         for (log_n, width) in iproduct!(2..5, [1, 4, 11]) {
             let evals = CircleEvaluations::<F>::from_natural_order(
                 CircleDomain::standard(log_n),
-                RowMajorMatrix::rand(&mut rng(), 1 << log_n, width),
+                RowMajorMatrix::rand(&mut rng, 1 << log_n, width),
             );
 
-            let pt = Point::<EF>::from_projective_line(random());
+            let pt = Point::<EF>::from_projective_line(rng.random());
 
             assert_eq!(
                 evals.clone().evaluate_at_point(pt),
@@ -355,15 +362,16 @@ mod tests {
 
     #[test]
     fn eval_at_point_matches_lde() {
+        let mut rng = SmallRng::seed_from_u64(1);
         for (log_n, width, log_blowup) in iproduct!(2..8, [1, 4, 11], [1, 2]) {
             let evals = CircleEvaluations::<F>::from_natural_order(
                 CircleDomain::standard(log_n),
-                RowMajorMatrix::rand(&mut rng(), 1 << log_n, width),
+                RowMajorMatrix::rand(&mut rng, 1 << log_n, width),
             );
             let lde = evals
                 .clone()
                 .extrapolate(CircleDomain::standard(log_n + log_blowup));
-            let zeta = Point::<EF>::from_projective_line(random());
+            let zeta = Point::<EF>::from_projective_line(rng.random());
             assert_eq!(evals.evaluate_at_point(zeta), lde.evaluate_at_point(zeta));
             assert_eq!(
                 evals.evaluate_at_point(zeta),

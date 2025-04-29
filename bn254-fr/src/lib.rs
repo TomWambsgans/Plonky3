@@ -1,22 +1,26 @@
 //! The scalar field of the BN254 curve, defined as `F_r` where `r = 21888242871839275222246405745257275088548364400416034343698204186575808495617`.
+#![no_std]
 
 mod poseidon2;
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
-use core::{fmt, stringify};
-
+use core::{array, fmt, stringify};
 use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
-use ff::{Field as FFField, PrimeField as FFPrimeField};
+
 pub use halo2curves::bn256::Fr as FFBn254Fr;
+use halo2curves::ff::{Field as FFField, PrimeField as FFPrimeField};
 use halo2curves::serde::SerdeObject;
 use num_bigint::BigUint;
 use p3_field::integers::QuotientMap;
 use p3_field::{
-    Field, InjectiveMonomial, Packable, PrimeCharacteristicRing, PrimeField, TwoAdicField,
-    quotient_map_small_int,
+    Field, InjectiveMonomial, Packable, PrimeCharacteristicRing, PrimeField, RawDataSerializable,
+    TwoAdicField, quotient_map_small_int,
 };
 pub use poseidon2::Poseidon2Bn254;
 use rand::Rng;
@@ -56,9 +60,7 @@ impl<'de> Deserialize<'de> for Bn254Fr {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let bytes: Vec<u8> = Deserialize::deserialize(d)?;
 
-        let value = FFBn254Fr::from_raw_bytes(&bytes);
-
-        value
+        FFBn254Fr::from_raw_bytes(&bytes)
             .map(Self::new)
             .ok_or_else(|| serde::de::Error::custom("Invalid field element"))
     }
@@ -88,7 +90,7 @@ impl PartialOrd for Bn254Fr {
 
 impl Display for Bn254Fr {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        <FFBn254Fr as Debug>::fmt(&self.value, f)
+        self.value.fmt(f)
     }
 }
 
@@ -127,6 +129,65 @@ impl InjectiveMonomial<5> for Bn254Fr {}
 // TODO: Implement PermutationMonomial<5> for Bn254Fr.
 // Not a priority given how slow (and unused) this will be.
 
+impl RawDataSerializable for Bn254Fr {
+    const NUM_BYTES: usize = 32;
+
+    #[allow(refining_impl_trait)]
+    #[inline]
+    fn into_bytes(self) -> [u8; 32] {
+        // TODO: Would be better to use to_raw_bytes() but I'm unsure if that has a uniqueness guarantee.
+        self.value.to_repr().into()
+    }
+
+    #[inline]
+    fn into_u32_stream(input: impl IntoIterator<Item = Self>) -> impl IntoIterator<Item = u32> {
+        // TODO: Might be a way to use iter_u32_digits and save an allocation.
+        // Currently switching it in causes rust to throw an error about referencing temporary values.
+        // Also we don't need as_canonical_biguint, (e.g. as_unique_biguint would be fine if it existed).
+        // This comment also applies to `into_u64_stream` as well as `into_parallel_u32_streams` and `into_parallel_u64_streams`.
+        input
+            .into_iter()
+            .flat_map(|x| x.as_canonical_biguint().to_u32_digits())
+    }
+
+    #[inline]
+    fn into_u64_stream(input: impl IntoIterator<Item = Self>) -> impl IntoIterator<Item = u64> {
+        input
+            .into_iter()
+            .flat_map(|x| x.as_canonical_biguint().to_u64_digits())
+    }
+
+    #[inline]
+    fn into_parallel_byte_streams<const N: usize>(
+        input: impl IntoIterator<Item = [Self; N]>,
+    ) -> impl IntoIterator<Item = [u8; N]> {
+        input.into_iter().flat_map(|vector| {
+            let bytes = vector.map(|elem| elem.into_bytes());
+            (0..Self::NUM_BYTES).map(move |i| array::from_fn(|j| bytes[j][i]))
+        })
+    }
+
+    #[inline]
+    fn into_parallel_u32_streams<const N: usize>(
+        input: impl IntoIterator<Item = [Self; N]>,
+    ) -> impl IntoIterator<Item = [u32; N]> {
+        input.into_iter().flat_map(|vector| {
+            let u32s = vector.map(|elem| elem.as_canonical_biguint().to_u32_digits());
+            (0..(Self::NUM_BYTES / 4)).map(move |i| array::from_fn(|j| u32s[j][i]))
+        })
+    }
+
+    #[inline]
+    fn into_parallel_u64_streams<const N: usize>(
+        input: impl IntoIterator<Item = [Self; N]>,
+    ) -> impl IntoIterator<Item = [u64; N]> {
+        input.into_iter().flat_map(|vector| {
+            let u64s = vector.map(|elem| elem.as_canonical_biguint().to_u64_digits());
+            (0..(Self::NUM_BYTES / 8)).map(move |i| array::from_fn(|j| u64s[j][i]))
+        })
+    }
+}
+
 impl Field for Bn254Fr {
     type Packing = Self;
 
@@ -153,7 +214,7 @@ impl Field for Bn254Fr {
 
     /// r = 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
     fn order() -> BigUint {
-        BigUint::new(vec![
+        BigUint::from_slice(&[
             0xf0000001, 0x43e1f593, 0x79b97091, 0x2833e848, 0x8181585d, 0xb85045b6, 0xe131a029,
             0x30644e72,
         ])
@@ -330,7 +391,7 @@ mod tests {
     #[test]
     fn test_bn254fr() {
         let f = F::new(FFBn254Fr::from_u128(100));
-        assert_eq!(f.as_canonical_biguint(), BigUint::new(vec![100]));
+        assert_eq!(f.as_canonical_biguint(), BigUint::from(100u32));
 
         let f = F::new(FFBn254Fr::from_str_vartime(&F::order().to_str_radix(10)).unwrap());
         assert!(f.is_zero());
@@ -338,7 +399,7 @@ mod tests {
         // Generator check
         let expected_multiplicative_group_generator = F::new(FFBn254Fr::from_u128(5));
         assert_eq!(F::GENERATOR, expected_multiplicative_group_generator);
-        assert_eq!(F::GENERATOR.as_canonical_biguint(), BigUint::new(vec![5]));
+        assert_eq!(F::GENERATOR.as_canonical_biguint(), BigUint::from(5u32));
 
         let f_1 = F::ONE;
         let f_2 = F::TWO;

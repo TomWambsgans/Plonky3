@@ -15,7 +15,7 @@ use p3_field::{
     Algebra, Field, InjectiveMonomial, PackedField, PackedFieldPow2, PackedValue,
     PermutationMonomial, PrimeCharacteristicRing,
 };
-use p3_util::convert_vec;
+use p3_util::reconstitute_from_base;
 use rand::Rng;
 use rand::distr::{Distribution, StandardUniform};
 
@@ -33,7 +33,7 @@ const EVENS4: __mmask16 = 0x0f0f;
 
 /// Vectorized AVX-512F implementation of `MontyField31` arithmetic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(transparent)] // This needed to make `transmute`s safe.
+#[repr(transparent)] // Needed to make `transmute`s safe.
 pub struct PackedMontyField31AVX512<PMP: PackedMontyParameters>(pub [MontyField31<PMP>; WIDTH]);
 
 impl<PMP: PackedMontyParameters> PackedMontyField31AVX512<PMP> {
@@ -195,7 +195,7 @@ pub(crate) fn sub<MPAVX512: MontyParametersAVX512>(lhs: __m512i, rhs: __m512i) -
 
 /// No-op. Prevents the compiler from deducing the value of the vector.
 ///
-/// Similar to `std::hint::black_box`, it can be used to stop the compiler applying undesirable
+/// Similar to `core::hint::black_box`, it can be used to stop the compiler applying undesirable
 /// "optimizations". Unlike the built-in `black_box`, it does not force the value to be written to
 /// and then read from the stack.
 #[inline]
@@ -1061,7 +1061,7 @@ impl<FP: FieldParameters> PrimeCharacteristicRing for PackedMontyField31AVX512<F
     #[inline(always)]
     fn zero_vec(len: usize) -> Vec<Self> {
         // SAFETY: this is a repr(transparent) wrapper around an array.
-        unsafe { convert_vec(MontyField31::<FP>::zero_vec(len * WIDTH)) }
+        unsafe { reconstitute_from_base(MontyField31::<FP>::zero_vec(len * WIDTH)) }
     }
 
     #[inline]
