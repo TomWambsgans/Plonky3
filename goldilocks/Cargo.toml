@@ -18,6 +18,7 @@ num-bigint.workspace = true
 paste.workspace = true
 rand.workspace = true
 serde = { workspace = true, features = ["derive"] }
+cudarc.workspace = true
 
 [dev-dependencies]
 p3-field-testing.workspace = true

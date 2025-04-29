@@ -5,6 +5,7 @@ use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, fmt, iter};
+use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 
 use num_bigint::BigUint;
 use p3_field::exponentiation::exp_1717986917;
@@ -30,6 +31,9 @@ pub struct Mersenne31 {
     /// Not necessarily canonical, but must fit in 31 bits.
     pub(crate) value: u32,
 }
+unsafe impl DeviceRepr for Mersenne31 {}
+
+unsafe impl ValidAsZeroBits for Mersenne31 {}
 
 impl Mersenne31 {
     /// Convert a u32 element into a Mersenne31 element.
@@ -257,6 +261,10 @@ impl Field for Mersenne31 {
 
     // Sage: GF(2^31 - 1).multiplicative_generator()
     const GENERATOR: Self = Self::new(7);
+
+    fn random<R: Rng>(rng: &mut R) -> Self {
+        rng.random()
+    }
 
     #[inline]
     fn is_zero(&self) -> bool {

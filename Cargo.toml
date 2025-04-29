@@ -65,6 +65,7 @@ tracing-subscriber = { version = "0.3.17", default-features = false, features = 
     "alloc",
 ] }
 transpose = "0.2.3"
+cudarc = { version = "0.16.0", features = ["cuda-12040", "driver"]}
 
 # Local dependencies
 p3-air = { path = "air", version = "0.1.0" }

@@ -10,6 +10,7 @@ p3-maybe-rayon.workspace = true
 num-bigint.workspace = true
 paste.workspace = true
 tracing.workspace = true
+cudarc.workspace = true
 
 itertools.workspace = true
 rand.workspace = true

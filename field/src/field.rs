@@ -5,6 +5,7 @@ use core::hash::Hash;
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, slice};
+use rand::Rng;
 
 use num_bigint::BigUint;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
@@ -733,11 +734,15 @@ pub trait Field:
     + Display
     + Serialize
     + DeserializeOwned
+    + cudarc::driver::DeviceRepr
+    + cudarc::driver::ValidAsZeroBits
 {
     type Packing: PackedField<Scalar = Self>;
 
     /// A generator of this field's multiplicative group.
     const GENERATOR: Self;
+
+    fn random<R: Rng>(rng: &mut R) -> Self;
 
     /// Check if the given field element is equal to the unique additive identity (ZERO).
     #[must_use]

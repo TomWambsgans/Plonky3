@@ -5,6 +5,7 @@ use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, fmt};
+use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 
 use num_bigint::BigUint;
 use p3_field::exponentiation::exp_10540996611094048183;
@@ -31,6 +32,10 @@ pub struct Goldilocks {
     /// Not necessarily canonical.
     pub(crate) value: u64,
 }
+
+unsafe impl DeviceRepr for Goldilocks {}
+
+unsafe impl ValidAsZeroBits for Goldilocks {}
 
 impl Goldilocks {
     pub(crate) const fn new(value: u64) -> Self {
@@ -289,6 +294,10 @@ impl Field for Goldilocks {
 
     // Sage: GF(2^64 - 2^32 + 1).multiplicative_generator()
     const GENERATOR: Self = Self::new(7);
+
+    fn random<R: Rng>(rng: &mut R) -> Self {
+        rng.random()
+    }
 
     fn is_zero(&self) -> bool {
         self.value == 0 || self.value == Self::ORDER_U64

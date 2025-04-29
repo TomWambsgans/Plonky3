@@ -8,6 +8,7 @@ use core::iter::{Product, Sum};
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, iter};
+use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 
 use num_bigint::BigUint;
 use p3_field::integers::QuotientMap;
@@ -37,6 +38,10 @@ pub struct MontyField31<MP: MontyParameters> {
     pub(crate) value: u32,
     _phantom: PhantomData<MP>,
 }
+
+unsafe impl<MP: MontyParameters> DeviceRepr for MontyField31<MP> {}
+
+unsafe impl<MP: MontyParameters> ValidAsZeroBits for MontyField31<MP> {}
 
 impl<MP: MontyParameters> MontyField31<MP> {
     /// The standard way to create a new element.
@@ -388,6 +393,10 @@ impl<FP: FieldParameters> Field for MontyField31<FP> {
     type Packing = Self;
 
     const GENERATOR: Self = FP::MONTY_GEN;
+
+    fn random<R: Rng>(rng: &mut R) -> Self {
+        rng.random()
+    }
 
     fn try_inverse(&self) -> Option<Self> {
         FP::try_inverse(*self)
