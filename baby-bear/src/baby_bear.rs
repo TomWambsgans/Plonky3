@@ -111,6 +111,16 @@ impl BinomialExtensionData<5> for BabyBearParameters {
     const TWO_ADIC_EXTENSION_GENERATORS: Self::ArrayLike = [];
 }
 
+impl BinomialExtensionData<8> for BabyBearParameters {
+    const W: BabyBear = BabyBear::new(11);
+    const DTH_ROOT: BabyBear = BabyBear::new(420899707);
+    const EXT_GENERATOR: [BabyBear; 8] = BabyBear::new_array([5, 1, 0, 0, 0, 0, 0, 0]);
+    const EXT_TWO_ADICITY: usize = 27;
+
+    type ArrayLike = [[BabyBear; 8]; 0];
+    const TWO_ADIC_EXTENSION_GENERATORS: Self::ArrayLike = [];
+}
+
 #[cfg(test)]
 mod tests {
     use core::array;

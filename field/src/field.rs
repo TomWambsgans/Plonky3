@@ -959,8 +959,6 @@ impl<R: PrimeCharacteristicRing> Iterator for Powers<R> {
     }
 }
 
-use num_traits::One;
-
 fn pow_biguint<F: Field>(base: &F, exp: &BigUint) -> F {
     let mut result = F::ONE;
     let mut acc = *base;
@@ -1030,7 +1028,7 @@ where
         }
 
         // d = c^{2^{r-m-1}}
-        let exp_d: BigUint = (BigUint::one()) << (r - m - 1);
+        let exp_d: BigUint = (BigUint::from(1_usize)) << (r - m - 1);
         let d = pow_biguint(&cc, &exp_d);
 
         x *= d; // new potential square root
