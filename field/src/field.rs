@@ -5,18 +5,18 @@ use core::hash::Hash;
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, slice};
-use rand::Rng;
 
 use num_bigint::BigUint;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use p3_util::iter_array_chunks_padded;
+use rand::Rng;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::exponentiation::bits_u64;
 use crate::integers::{QuotientMap, from_integer_types};
 use crate::packed::PackedField;
-use crate::{Packable, PackedFieldExtension};
+use crate::{Packable, PackedFieldExtension, PackedValue};
 
 /// A commutative ring, `R`, with prime characteristic, `p`.
 ///
@@ -537,13 +537,11 @@ impl<F: PrimeCharacteristicRing> BasedVectorSpace<F> for F {
         (iter.len() == 1).then(|| iter.next().unwrap()) // Unwrap will not panic as we know the length is 1.
     }
 
-    #[must_use]
     #[inline]
     fn flatten_to_base(vec: Vec<Self>) -> Vec<F> {
         vec
     }
 
-    #[must_use]
     #[inline]
     fn reconstitute_from_base(vec: Vec<F>) -> Vec<Self> {
         vec
@@ -734,8 +732,6 @@ pub trait Field:
     + Display
     + Serialize
     + DeserializeOwned
-    + cudarc::driver::DeviceRepr
-    + cudarc::driver::ValidAsZeroBits
 {
     type Packing: PackedField<Scalar = Self>;
 
@@ -804,6 +800,33 @@ pub trait Field:
                     .expect("Cannot divide by 2 in fields with characteristic 2")
                     .exp_u64(exp),
             )
+    }
+
+    /// Add two slices of field elements together, returning the result in the first slice.
+    ///
+    /// Makes use of packing to speed up the addition.
+    ///
+    /// This is optimal for cases where the two slices are small to medium length. E.g. between
+    /// `F::Packing::WIDTH` and roughly however many elements fit in a cache line.
+    ///
+    /// For larger slices, it's likely worthwhile to use parallelization before calling this.
+    /// Similarly if you need to add a large number of slices together, it's best to
+    /// break them into small chunks and call this on the smaller chunks.
+    ///
+    /// # Panics
+    /// The function will panic if the lengths of the two slices are not equal.
+    #[inline]
+    fn add_slices(slice_1: &mut [Self], slice_2: &[Self]) {
+        let (shorts_1, suffix_1) = Self::Packing::pack_slice_with_suffix_mut(slice_1);
+        let (shorts_2, suffix_2) = Self::Packing::pack_slice_with_suffix(slice_2);
+        debug_assert_eq!(shorts_1.len(), shorts_2.len());
+        debug_assert_eq!(suffix_1.len(), suffix_2.len());
+        for (x_1, &x_2) in shorts_1.iter_mut().zip(shorts_2) {
+            *x_1 += x_2;
+        }
+        for (x_1, &x_2) in suffix_1.iter_mut().zip(suffix_2) {
+            *x_1 += x_2;
+        }
     }
 
     /// The number of elements in the field.

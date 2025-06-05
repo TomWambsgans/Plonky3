@@ -11,7 +11,6 @@ use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, fmt, stringify};
-use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 
 pub use halo2curves::bn256::Fr as FFBn254Fr;
 use halo2curves::ff::{Field as FFField, PrimeField as FFPrimeField};
@@ -32,10 +31,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 pub struct Bn254Fr {
     pub(crate) value: FFBn254Fr,
 }
-
-unsafe impl DeviceRepr for Bn254Fr {}
-
-unsafe impl ValidAsZeroBits for Bn254Fr {}
 
 impl Bn254Fr {
     pub(crate) const fn new(value: FFBn254Fr) -> Self {

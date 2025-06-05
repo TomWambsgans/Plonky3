@@ -6,11 +6,11 @@ use core::marker::PhantomData;
 
 use itertools::{Itertools, izip};
 use p3_challenger::{CanObserve, FieldChallenger, GrindingChallenger};
-use p3_commit::{Mmcs, OpenedValues, Pcs};
+use p3_commit::{BatchOpening, Mmcs, OpenedValues, Pcs};
 use p3_dft::TwoAdicSubgroupDft;
 use p3_field::coset::TwoAdicMultiplicativeCoset;
 use p3_field::{
-    ExtensionField, Field, PackedFieldExtension, TwoAdicField, batch_multiplicative_inverse,
+    ExtensionField, PackedFieldExtension, TwoAdicField, batch_multiplicative_inverse,
     cyclic_subgroup_coset_known_order, dot_product,
 };
 use p3_interpolation::interpolate_coset_with_precomputation;
@@ -21,7 +21,6 @@ use p3_maybe_rayon::prelude::*;
 use p3_util::linear_map::LinearMap;
 use p3_util::zip_eq::zip_eq;
 use p3_util::{log2_strict_usize, reverse_bits_len, reverse_slice_index_bits};
-use serde::{Deserialize, Serialize};
 use tracing::{info_span, instrument};
 
 use crate::verifier::{self, FriError};
@@ -44,13 +43,6 @@ impl<Val, Dft, InputMmcs, FriMmcs> TwoAdicFriPcs<Val, Dft, InputMmcs, FriMmcs> {
             _phantom: PhantomData,
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(bound = "")]
-pub struct BatchOpening<Val: Field, InputMmcs: Mmcs<Val>> {
-    pub opened_values: Vec<Vec<Val>>,
-    pub opening_proof: <InputMmcs as Mmcs<Val>>::Proof,
 }
 
 pub struct TwoAdicFriGenericConfig<InputProof, InputError>(
@@ -423,11 +415,7 @@ where
                     let log_max_height = log2_strict_usize(self.mmcs.get_max_height(data));
                     let bits_reduced = log_global_max_height - log_max_height;
                     let reduced_index = index >> bits_reduced;
-                    let (opened_values, opening_proof) = self.mmcs.open_batch(reduced_index, data);
-                    BatchOpening {
-                        opened_values,
-                        opening_proof,
-                    }
+                    self.mmcs.open_batch(reduced_index, data)
                 })
                 .collect()
         });
@@ -504,18 +492,12 @@ where
                         batch_commit,
                         &batch_dims,
                         reduced_index,
-                        &batch_opening.opened_values,
-                        &batch_opening.opening_proof,
+                        batch_opening.into(),
                     )
                 } else {
                     // Empty batch?
-                    self.mmcs.verify_batch(
-                        batch_commit,
-                        &[],
-                        0,
-                        &batch_opening.opened_values,
-                        &batch_opening.opening_proof,
-                    )
+                    self.mmcs
+                        .verify_batch(batch_commit, &[], 0, batch_opening.into())
                 }
                 .map_err(FriError::InputError)?;
 
@@ -551,10 +533,12 @@ where
             }
 
             // `reduced_openings` would have a log_height = log_blowup entry only if there was a
-            // trace matrix of height 1. In this case the reduced opening can be skipped as it will
-            // not be checked against any commit phase commit.
-            if let Some((_alpha_pow, ro)) = reduced_openings.remove(&self.fri.log_blowup) {
-                assert!(ro.is_zero());
+            // trace matrix of height 1. In this case `f` is constant, so `f(zeta) - f(x))/(zeta - x)`
+            // must equal `0`.
+            if let Some((_alpha_pow, ro)) = reduced_openings.get(&self.fri.log_blowup) {
+                if !ro.is_zero() {
+                    return Err(FriError::FinalPolyMismatch);
+                }
             }
 
             // Return reduced openings descending by log_height.

@@ -6,9 +6,13 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use itertools::Itertools;
 use p3_util::{flatten_to_base, reconstitute_from_base};
+use rand::distr::{Distribution, StandardUniform};
 use serde::{Deserialize, Serialize};
 
-use super::{BinomialExtensionField, binomial_mul, cubic_square, vector_add, vector_sub};
+use super::{
+    BinomialExtensionField, binomial_mul, cubic_square, quartic_square, quintic_square, vector_add,
+    vector_sub,
+};
 use crate::extension::BinomiallyExtendable;
 use crate::{
     Algebra, BasedVectorSpace, Field, PackedField, PackedFieldExtension, PackedValue, Powers,
@@ -64,6 +68,17 @@ impl<F: Field, PF: PackedField<Scalar = F>, const D: usize> From<PF>
     }
 }
 
+impl<F: Field, PF: PackedField<Scalar = F>, const D: usize>
+    Distribution<PackedBinomialExtensionField<F, PF, D>> for StandardUniform
+where
+    Self: Distribution<PF>,
+{
+    #[inline]
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> PackedBinomialExtensionField<F, PF, D> {
+        PackedBinomialExtensionField::new(array::from_fn(|_| self.sample(rng)))
+    }
+}
+
 impl<F: BinomiallyExtendable<D>, PF: PackedField<Scalar = F>, const D: usize>
     Algebra<BinomialExtensionField<F, D>> for PackedBinomialExtensionField<F, PF, D>
 {
@@ -109,21 +124,21 @@ where
 
     #[inline(always)]
     fn square(&self) -> Self {
+        let mut res = Self::default();
+        let w = F::W;
         match D {
             2 => {
-                let a = self.value;
-                let mut res = Self::default();
-                res.value[0] = a[0].square() + a[1].square() * F::W;
+                let a = &self.value;
+                let a1_w = a[1] * F::W;
+                res.value[0] = PF::dot_product(a[..].try_into().unwrap(), &[a[0], a1_w]);
                 res.value[1] = a[0] * a[1].double();
-                res
             }
-            3 => {
-                let mut res = Self::default();
-                cubic_square(&self.value, &mut res.value);
-                res
-            }
-            _ => *self * *self,
+            3 => cubic_square(&self.value, &mut res.value),
+            4 => quartic_square(&self.value, &mut res.value, w),
+            5 => quintic_square(&self.value, &mut res.value, w),
+            _ => binomial_mul::<F, PF, PF, D>(&self.value, &self.value, &mut res.value, w),
         }
+        res
     }
 
     #[inline]
@@ -162,7 +177,7 @@ where
         unsafe {
             // Safety:
             // As `Self` is a `repr(transparent)`, it is stored identically in memory to `[PF; D]`
-            flatten_to_base::<PF, Self>(vec)
+            flatten_to_base(vec)
         }
     }
 
@@ -171,7 +186,7 @@ where
         unsafe {
             // Safety:
             // As `Self` is a `repr(transparent)`, it is stored identically in memory to `[PF; D]`
-            reconstitute_from_base::<PF, Self>(vec)
+            reconstitute_from_base(vec)
         }
     }
 }
