@@ -6,6 +6,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
+use p3_field::coset::TwoAdicMultiplicativeCoset;
 use p3_field::{
     ExtensionField, TwoAdicField, batch_multiplicative_inverse, scale_slice_in_place_single_core,
 };
@@ -20,7 +21,7 @@ use p3_util::log2_strict_usize;
 pub fn interpolate_subgroup<F, EF, Mat>(subgroup_evals: &Mat, point: EF) -> Vec<EF>
 where
     F: TwoAdicField,
-    EF: ExtensionField<F> + TwoAdicField,
+    EF: ExtensionField<F>,
     Mat: Matrix<F>,
 {
     interpolate_coset(subgroup_evals, F::ONE, point)
@@ -35,17 +36,18 @@ where
 pub fn interpolate_coset<F, EF, Mat>(coset_evals: &Mat, shift: F, point: EF) -> Vec<EF>
 where
     F: TwoAdicField,
-    EF: ExtensionField<F> + TwoAdicField,
+    EF: ExtensionField<F>,
     Mat: Matrix<F>,
 {
     let height = coset_evals.height();
     let log_height = log2_strict_usize(height);
-    let coset = F::two_adic_generator(log_height)
-        .shifted_powers(shift)
-        .take(height)
-        .collect::<Vec<_>>();
 
-    // Compute `1/(z - gh^i)` for each elements of the coset.
+    let coset = TwoAdicMultiplicativeCoset::new(shift, log_height)
+        .unwrap()
+        .iter()
+        .collect();
+
+    // Compute `1/(z - gh^i)` for each element of the coset.
     let diffs: Vec<_> = coset.par_iter().map(|&g| point - g).collect();
     let diff_invs = batch_multiplicative_inverse(&diffs);
 
@@ -73,7 +75,7 @@ pub fn interpolate_coset_with_precomputation<F, EF, Mat>(
 ) -> Vec<EF>
 where
     F: TwoAdicField,
-    EF: ExtensionField<F> + TwoAdicField,
+    EF: ExtensionField<F>,
     Mat: Matrix<F>,
 {
     // Slight variation of this approach: https://hackmd.io/@vbuterin/barycentric_evaluation
@@ -168,10 +170,7 @@ mod tests {
         let n = evals.len();
         let k = log2_strict_usize(n);
 
-        let coset: Vec<_> = F::two_adic_generator(k)
-            .shifted_powers(shift)
-            .take(n)
-            .collect();
+        let coset = F::two_adic_generator(k).shifted_powers(shift).collect_n(n);
 
         let denom: Vec<_> = coset.iter().map(|&w| point - w).collect();
 
@@ -232,8 +231,7 @@ mod tests {
         let shift = EF4::GENERATOR;
         let coset = EF4::two_adic_generator(3)
             .shifted_powers(shift)
-            .take(8)
-            .collect::<Vec<_>>();
+            .collect_n(8);
 
         let f1 = |x: EF4| x * x + x * F::TWO + F::from_u32(3);
         let f2 = |x: EF4| x * x * F::from_u32(4) + x * F::from_u32(5) + F::from_u32(6);

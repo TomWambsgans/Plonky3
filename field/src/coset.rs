@@ -1,6 +1,4 @@
-use core::iter::Take;
-
-use crate::{Powers, TwoAdicField};
+use crate::{BoundedPowers, TwoAdicField};
 
 /// Coset of a subgroup of the group of units of a finite field of order equal
 /// to a power of two.
@@ -166,7 +164,7 @@ impl<F: TwoAdicField> TwoAdicMultiplicativeCoset<F> {
         // Note that, in a finite field F (this is not true of a general finite
         // commutative ring), there is exactly one subgroup of |F^*| of order n
         // for each divisor n of |F| - 1, and its elements e are uniquely
-        // caracterised by the condition e^n = 1.
+        // characterised by the condition e^n = 1.
 
         // We check (shift^{-1} * element)^(2^log_size) = 1, which is equivalent
         // to checking shift^(2^log_size) = element^(2^log_size) - this avoids
@@ -219,16 +217,16 @@ impl<F: TwoAdicField> TwoAdicMultiplicativeCoset<F> {
     /// Returns an iterator over the elements of the coset in the canonical order
     /// `shift * generator^0, shift * generator^1, ...,
     /// shift * generator^(2^log_size - 1)`.
-    pub fn iter(&self) -> Take<Powers<F>> {
+    pub fn iter(&self) -> BoundedPowers<F> {
         self.subgroup_generator()
             .shifted_powers(self.shift)
-            .take(1 << self.log_size)
+            .take(self.size())
     }
 }
 
 impl<F: TwoAdicField> IntoIterator for TwoAdicMultiplicativeCoset<F> {
     type Item = F;
-    type IntoIter = Take<Powers<F>>;
+    type IntoIter = BoundedPowers<F>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -237,7 +235,7 @@ impl<F: TwoAdicField> IntoIterator for TwoAdicMultiplicativeCoset<F> {
 
 impl<F: TwoAdicField> IntoIterator for &TwoAdicMultiplicativeCoset<F> {
     type Item = F;
-    type IntoIter = Take<Powers<F>>;
+    type IntoIter = BoundedPowers<F>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
