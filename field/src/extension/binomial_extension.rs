@@ -673,6 +673,7 @@ pub(super) fn binomial_mul<
         3 => cubic_mul(a, b, res, w),
         4 => quartic_mul(a, b, res, w),
         5 => quintic_mul(a, b, res, w),
+        8 => octo_mul(a, b, res, w),
         _ =>
         {
             #[allow(clippy::needless_range_loop)]
@@ -687,6 +688,113 @@ pub(super) fn binomial_mul<
             }
         }
     }
+}
+
+/// Multiplication in an octic binomial extension field.
+///
+/// Makes use of the in built field dot product code. This is optimized for the case that
+/// R is a prime field or its packing.
+fn octo_mul<F, R, R2, const D: usize>(a: &[R; D], b: &[R2; D], res: &mut [R; D], w: F)
+where
+    F: Field,
+    R: Algebra<F> + Algebra<R2>,
+    R2: Algebra<F>,
+{
+    assert_eq!(D, 8);
+
+    fn slice_to_ar<T, const D: usize>(slice: &[T]) -> &[T; D] {
+        unsafe { &*(slice.as_ptr() as *const [T; D]) }
+    }
+
+    let b_r_rev: [R; 9] = [
+        b[7].clone().into(),
+        b[6].clone().into(),
+        b[5].clone().into(),
+        b[4].clone().into(),
+        b[3].clone().into(),
+        b[2].clone().into(),
+        b[1].clone().into(),
+        b[0].clone().into(),
+        w.into(),
+    ];
+    // Constant term = a0*b0 + w(a1*b7 + a2*b6 + a3*b5 + a4*b4 + a5*b3 + a6*b2 + a7*b1)
+    let w_coeff_0 = R::dot_product::<7>(slice_to_ar(&a[1..]), slice_to_ar(&b_r_rev[..7]));
+    res[0] = R::dot_product(&[a[0].clone(), w_coeff_0], slice_to_ar(&b_r_rev[7..]));
+
+    // Linear term = a0*b1 + a1*b0 + w(a2*b7 + a3*b6 + a4*b5 + a5*b4 + a6*b3 + a7*b2)
+    let w_coeff_1 = R::dot_product::<6>(slice_to_ar(&a[2..]), slice_to_ar(&b_r_rev[..6]));
+    res[1] = R::dot_product(
+        &[a[0].clone(), a[1].clone(), w_coeff_1],
+        slice_to_ar(&b_r_rev[6..]),
+    );
+
+    // Quadratic term = a0*b2 + a1*b1 + a2*b0 + w(a3*b7 + a4*b6 + a5*b5 + a6*b4 + a7*b3)
+    let w_coeff_2 = R::dot_product::<5>(slice_to_ar(&a[3..]), slice_to_ar(&b_r_rev[..5]));
+    res[2] = R::dot_product(
+        &[a[0].clone(), a[1].clone(), a[2].clone(), w_coeff_2],
+        slice_to_ar(&b_r_rev[5..]),
+    );
+
+    // Cubic term = a0*b3 + a1*b2 + a2*b1 + a3*b0 + w(a4*b7 + a5*b6 + a6*b5 + a7*b4)
+    let w_coeff_3 = R::dot_product::<4>(slice_to_ar(&a[4..]), slice_to_ar(&b_r_rev[..4]));
+    res[3] = R::dot_product(
+        &[
+            a[0].clone(),
+            a[1].clone(),
+            a[2].clone(),
+            a[3].clone(),
+            w_coeff_3,
+        ],
+        slice_to_ar(&b_r_rev[4..]),
+    );
+
+    // Quartic term = a0*b4 + a1*b3 + a2*b2 + a3*b1 + a4*b0 + w(a5*b7 + a6*b6 + a7*b5)
+    let w_coeff_4 = R::dot_product::<3>(slice_to_ar(&a[5..]), slice_to_ar(&b_r_rev[..3]));
+    res[4] = R::dot_product(
+        &[
+            a[0].clone(),
+            a[1].clone(),
+            a[2].clone(),
+            a[3].clone(),
+            a[4].clone(),
+            w_coeff_4,
+        ],
+        slice_to_ar(&b_r_rev[3..]),
+    );
+
+    // Quintic term = a0*b5 + a1*b4 + a2*b3 + a3*b2 + a4*b1 + a5*b0 + w(a6*b7 + a7*b6)
+    let w_coeff_5 = R::dot_product::<2>(slice_to_ar(&a[6..]), slice_to_ar(&b_r_rev[..2]));
+    res[5] = R::dot_product(
+        &[
+            a[0].clone(),
+            a[1].clone(),
+            a[2].clone(),
+            a[3].clone(),
+            a[4].clone(),
+            a[5].clone(),
+            w_coeff_5,
+        ],
+        b_r_rev[2..].try_into().unwrap(),
+    );
+
+    // Sextic term = a0*b6 + a1*b5 + a2*b4 + a3*b3 + a4*b2 + a5*b1 + a6*b0 + w*a7*b7
+    let b7_w = b[7].clone() * w;
+    res[6] = R::dot_product::<8>(
+        slice_to_ar(&a[..8]),
+        &[
+            b_r_rev[1].clone(),
+            b_r_rev[2].clone(),
+            b_r_rev[3].clone(),
+            b_r_rev[4].clone(),
+            b_r_rev[5].clone(),
+            b_r_rev[6].clone(),
+            b_r_rev[7].clone(),
+            b7_w.into(),
+        ],
+    );
+
+    // Septic term = a0*b7 + a1*b6 + a2*b5 + a3*b4 + a4*b3 + a5*b2 + a6*b1 + a7*b0
+    res[7] = R::dot_product::<8>(a[..].try_into().unwrap(), b_r_rev[..8].try_into().unwrap());
 }
 
 /// Optimized multiplication for quadratic extension field.
