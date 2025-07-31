@@ -108,3 +108,79 @@ fn main() -> Result<(), impl Debug> {
 
     verify(&config, &air, &proof, &vec![])
 }
+
+
+
+#[cfg(test)]
+fn exp_biguint<F: p3_field::Field>(base: F, exponent: &num_bigint::BigUint) -> F {
+    use num_bigint::BigUint;
+
+    if exponent == &BigUint::from(0u8) {
+        return F::ONE;
+    }
+
+    let mut result = F::ONE;
+    let mut current_base = base;
+
+    // Convert the exponent to bytes
+    let exponent_bytes = exponent.to_bytes_le();
+
+    // Process 4 bytes (32 bits) at a time
+    for chunk_idx in 0..((exponent_bytes.len() + 3) / 4) {
+        // Extract the current 32-bit chunk
+        let start = chunk_idx * 4;
+        let end = std::cmp::min((chunk_idx + 1) * 4, exponent_bytes.len());
+
+        let mut chunk_value: u32 = 0;
+        for (i, &byte) in exponent_bytes[start..end].iter().enumerate() {
+            chunk_value |= (byte as u32) << (i * 8);
+        }
+
+        // If this chunk has a non-zero value, apply it
+        if chunk_value > 0 {
+            result *= current_base.exp_u64(chunk_value as u64);
+        }
+
+        // Prepare the base for the next chunk (base^(2^32))
+        current_base = current_base.exp_u64(1u64 << (4 * 8));
+    }
+
+    result
+}
+
+#[test]
+fn test() {
+    use num_bigint::BigUint;
+    use p3_field::Field;
+    use p3_field::PrimeCharacteristicRing;
+    // 2^25 × 3^2 × 7 × 67 × 127 × 283 × 1254833 × 9679978477096567 × 1513303300498959019
+    let decomposition = [
+        (BigUint::new(vec![2]), 30),
+        (BigUint::new(vec![3]), 1),
+        (BigUint::new(vec![5]), 1),
+        (BigUint::new(vec![17]), 1),
+        (BigUint::new(vec![31]), 1),
+        (BigUint::new(vec![97]), 1),
+        (BigUint::new(vec![12241]), 1),
+        (BigUint::new(vec![1666201]), 1),
+        (BigUint::new(vec![32472031]), 1),
+        (BigUint::new(vec![74565857]), 1),
+        (BigUint::new(vec![1702001361, 397]), 1),
+        (BigUint::new(vec![3175058489, 3577574990, 210]), 1),
+    ];
+
+    let mut prod = BigUint::from(1usize);
+    for (base, exp) in decomposition.iter() {
+        prod *= base.pow(*exp);
+    }
+    assert_eq!(
+        prod,
+        BigUint::from((1usize << 31) - (1 << 27) + 1).pow(8) - BigUint::from(1_usize)
+    );
+    type F = BinomialExtensionField<KoalaBear, 6>;
+    assert!(exp_biguint(F::GENERATOR, &prod) == F::ONE);
+    for (factor, _) in decomposition.iter() {
+        let f = &prod / factor;
+        assert!(exp_biguint(F::GENERATOR, &f) != F::ONE);
+    }
+}

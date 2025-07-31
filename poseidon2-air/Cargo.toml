@@ -33,6 +33,7 @@ p3-koala-bear.workspace = true
 p3-merkle-tree.workspace = true
 p3-symmetric.workspace = true
 p3-uni-stark.workspace = true
+num-bigint.workspace = true
 
 tracing-forest = { workspace = true, features = ["ansi", "smallvec"] }
 tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
