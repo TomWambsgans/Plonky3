@@ -24,7 +24,7 @@ use rand::distr::{Distribution, StandardUniform};
 use super::utils::halve_neon;
 use crate::{
     BinomialExtensionData, FieldParameters, MontyField31, PackedMontyParameters,
-    RelativelyPrimePower,
+    QuinticExtensionData, RelativelyPrimePower,
 };
 
 const WIDTH: usize = 4;
@@ -592,12 +592,12 @@ pub(crate) fn octic_mul_packed<FP, const WIDTH: usize>(
 
 /// Multiplication by a base field element in a binomial extension field.
 #[inline]
-pub(crate) fn base_mul_packed<FP, const WIDTH: usize>(
+pub fn base_mul_packed<FP, const WIDTH: usize>(
     a: [MontyField31<FP>; WIDTH],
     b: MontyField31<FP>,
     res: &mut [MontyField31<FP>; WIDTH],
 ) where
-    FP: FieldParameters + BinomialExtensionData<WIDTH>,
+    FP: FieldParameters,
 {
     match WIDTH {
         1 => res[0] = a[0] * b,
