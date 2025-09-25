@@ -334,6 +334,25 @@ pub trait PackedFieldExtension<
         })
     }
 
+    /// Given a iterator of packed extension field elements, convert to an iterator of
+    /// extension field elements.
+    ///
+    /// This performs the inverse transformation to `from_ext_slice`.
+    #[inline]
+    #[must_use]
+    fn to_ext_iter_vec(iter: Vec<Self>) -> Vec<ExtField> {
+        iter.into_iter()
+            .flat_map(|x| {
+                let packed_coeffs = x.as_basis_coefficients_slice();
+                (0..BaseField::Packing::WIDTH)
+                    .map(|i| {
+                        ExtField::from_basis_coefficients_fn(|j| packed_coeffs[j].as_slice()[i])
+                    })
+                    .collect::<Vec<_>>() // PackedFieldExtension's should reimplement this to avoid this allocation.
+            })
+            .collect()
+    }
+
     /// Similar to `packed_powers`, construct an iterator which returns
     /// powers of `base` packed into `PackedFieldExtension` elements.
     #[must_use]
