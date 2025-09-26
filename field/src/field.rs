@@ -66,6 +66,7 @@ pub trait PrimeCharacteristicRing:
     + Sum
     + Product
     + Debug
+    + PartialEq
 {
     /// The field `ℤ/p` where the characteristic of this ring is p.
     type PrimeSubfield: PrimeField;

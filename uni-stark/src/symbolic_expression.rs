@@ -36,6 +36,12 @@ pub enum SymbolicExpression<F> {
     },
 }
 
+impl<F> PartialEq for SymbolicExpression<F> {
+    fn eq(&self, _: &Self) -> bool {
+        unimplemented!()
+    }
+}
+
 impl<F> SymbolicExpression<F> {
     /// Returns the multiple of `n` (the trace length) in this expression's degree.
     pub const fn degree_multiple(&self) -> usize {
