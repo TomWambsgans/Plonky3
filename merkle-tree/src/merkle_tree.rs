@@ -27,7 +27,7 @@ use tracing::instrument;
 ///
 /// This generally shouldn't be used directly. If you're using a Merkle tree as an MMCS,
 /// see `MerkleTreeMmcs`.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MerkleTree<F, W, M, const DIGEST_ELEMS: usize> {
     /// All leaf matrices in insertion order.
     ///

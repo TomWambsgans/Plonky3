@@ -12,7 +12,7 @@ use crate::Matrix;
 /// Each element of the original matrix is an extension field element `EF`, composed of several
 /// base field elements `F`. This view expands each `EF` element into its base field components,
 /// effectively increasing the number of columns (width) while keeping the number of rows unchanged.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FlatMatrixView<F, EF, Inner>(Inner, PhantomData<(F, EF)>);
 
 impl<F, EF, Inner> FlatMatrixView<F, EF, Inner> {
