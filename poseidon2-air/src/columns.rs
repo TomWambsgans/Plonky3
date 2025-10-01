@@ -14,19 +14,20 @@ pub struct Poseidon2Cols<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 > {
     pub inputs: [T; WIDTH],
 
     /// Beginning Full Rounds
-    pub beginning_full_rounds: [FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; HALF_FULL_ROUNDS],
+    pub beginning_full_rounds: [FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; QUARTER_FULL_ROUNDS],
 
     /// Partial Rounds
     pub partial_rounds: [PartialRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; PARTIAL_ROUNDS],
 
     /// Ending Full Rounds
-    pub ending_full_rounds: [FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; HALF_FULL_ROUNDS],
+    pub ending_full_rounds: [FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; QUARTER_FULL_ROUNDS],
 }
 
 /// Full round columns.
@@ -61,10 +62,11 @@ pub const fn num_cols<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >() -> usize {
-    size_of::<Poseidon2Cols<u8, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>(
+    size_of::<Poseidon2Cols<u8, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>(
     )
 }
 
@@ -72,9 +74,10 @@ pub const fn make_col_map<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
->() -> Poseidon2Cols<usize, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS> {
+>() -> Poseidon2Cols<usize, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS> {
     todo!()
     // let indices_arr = indices_arr::<
     //     { num_cols::<WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>() },
@@ -100,14 +103,15 @@ impl<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
-> Borrow<Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>
+> Borrow<Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>
     for [T]
 {
     fn borrow(
         &self,
-    ) -> &Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
+    ) -> &Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
     {
         // debug_assert_eq!(self.len(), NUM_COLS);
         let (prefix, shorts, suffix) = unsafe {
@@ -116,6 +120,7 @@ impl<
                 WIDTH,
                 SBOX_DEGREE,
                 SBOX_REGISTERS,
+                QUARTER_FULL_ROUNDS,
                 HALF_FULL_ROUNDS,
                 PARTIAL_ROUNDS,
             >>()
@@ -132,14 +137,15 @@ impl<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
-> BorrowMut<Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>
+> BorrowMut<Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>
     for [T]
 {
     fn borrow_mut(
         &mut self,
-    ) -> &mut Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
+    ) -> &mut Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
     {
         // debug_assert_eq!(self.len(), NUM_COLS);
         let (prefix, shorts, suffix) = unsafe {
@@ -148,6 +154,7 @@ impl<
                 WIDTH,
                 SBOX_DEGREE,
                 SBOX_REGISTERS,
+                QUARTER_FULL_ROUNDS,
                 HALF_FULL_ROUNDS,
                 PARTIAL_ROUNDS,
             >>()
