@@ -22,6 +22,7 @@ pub struct Poseidon2Air<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 > {
@@ -35,6 +36,7 @@ impl<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >
@@ -44,6 +46,7 @@ impl<
         WIDTH,
         SBOX_DEGREE,
         SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
     >
@@ -75,6 +78,7 @@ impl<
             WIDTH,
             SBOX_DEGREE,
             SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
             HALF_FULL_ROUNDS,
             PARTIAL_ROUNDS,
         >(inputs, &self.constants, extra_capacity_bits)
@@ -87,6 +91,7 @@ impl<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 > BaseAir<F>
@@ -96,15 +101,23 @@ impl<
         WIDTH,
         SBOX_DEGREE,
         SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
     >
 {
     fn width(&self) -> usize {
-        num_cols::<WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>()
+        num_cols::<
+            WIDTH,
+            SBOX_DEGREE,
+            SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
+            HALF_FULL_ROUNDS,
+            PARTIAL_ROUNDS,
+        >()
     }
     fn degree(&self) -> usize {
-        3
+        9
     }
     fn structured(&self) -> bool {
         false
@@ -117,6 +130,7 @@ pub(crate) fn eval<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >(
@@ -126,6 +140,7 @@ pub(crate) fn eval<
         WIDTH,
         SBOX_DEGREE,
         SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
     >,
@@ -135,6 +150,7 @@ pub(crate) fn eval<
         WIDTH,
         SBOX_DEGREE,
         SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
     >,
@@ -143,11 +159,12 @@ pub(crate) fn eval<
 
     LinearLayers::external_linear_layer(&mut state);
 
-    for round in 0..HALF_FULL_ROUNDS {
-        eval_full_round::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
+    for round in 0..QUARTER_FULL_ROUNDS {
+        eval_2_full_rounds::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
             &mut state,
             &local.beginning_full_rounds[round],
-            &air.constants.beginning_full_round_constants[round],
+            &air.constants.beginning_full_round_constants[2 * round],
+            &air.constants.beginning_full_round_constants[2 * round + 1],
             builder,
         );
     }
@@ -161,11 +178,12 @@ pub(crate) fn eval<
         );
     }
 
-    for round in 0..HALF_FULL_ROUNDS {
-        eval_full_round::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
+    for round in 0..QUARTER_FULL_ROUNDS {
+        eval_2_full_rounds::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
             &mut state,
             &local.ending_full_rounds[round],
-            &air.constants.ending_full_round_constants[round],
+            &air.constants.ending_full_round_constants[2 * round],
+            &air.constants.ending_full_round_constants[2 * round + 1],
             builder,
         );
     }
@@ -178,6 +196,7 @@ impl<
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
     const HALF_FULL_ROUNDS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 > Air<AB>
     for Poseidon2Air<
@@ -186,6 +205,7 @@ impl<
         WIDTH,
         SBOX_DEGREE,
         SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
     >
@@ -196,14 +216,21 @@ impl<
         let local = main.row_slice(0).expect("The matrix is empty?");
         let local = (*local).borrow();
 
-        eval::<_, _, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>(
-            self, builder, local,
-        );
+        eval::<
+            _,
+            _,
+            WIDTH,
+            SBOX_DEGREE,
+            SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
+            HALF_FULL_ROUNDS,
+            PARTIAL_ROUNDS,
+        >(self, builder, local);
     }
 }
 
 #[inline]
-fn eval_full_round<
+fn eval_2_full_rounds<
     AB: AirBuilder,
     LinearLayers: GenericPoseidon2LinearLayers<WIDTH>,
     const WIDTH: usize,
@@ -212,10 +239,16 @@ fn eval_full_round<
 >(
     state: &mut [AB::Expr; WIDTH],
     full_round: &FullRound<AB::Var, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>,
-    round_constants: &[AB::F; WIDTH],
+    round_constants_1: &[AB::F; WIDTH],
+    round_constants_2: &[AB::F; WIDTH],
     builder: &mut AB,
 ) {
-    for (i, (s, r)) in state.iter_mut().zip(round_constants.iter()).enumerate() {
+    for (i, (s, r)) in state.iter_mut().zip(round_constants_1.iter()).enumerate() {
+        *s += r.clone();
+        eval_sbox(&full_round.sbox[i], s, builder);
+    }
+    LinearLayers::external_linear_layer(state);
+    for (i, (s, r)) in state.iter_mut().zip(round_constants_2.iter()).enumerate() {
         *s += r.clone();
         eval_sbox(&full_round.sbox[i], s, builder);
     }

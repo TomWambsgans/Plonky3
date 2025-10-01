@@ -27,6 +27,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 const WIDTH: usize = 16;
 const SBOX_DEGREE: u64 = 7;
 const SBOX_REGISTERS: usize = 1;
+const QUARTER_FULL_ROUNDS: usize = 2;
 const HALF_FULL_ROUNDS: usize = 4;
 const PARTIAL_ROUNDS: usize = 20;
 
@@ -87,6 +88,7 @@ fn main() -> Result<(), impl Debug> {
         WIDTH,
         SBOX_DEGREE,
         SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
         VECTOR_LEN,

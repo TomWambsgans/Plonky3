@@ -17,6 +17,7 @@ pub fn generate_vectorized_trace_rows<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
     const VECTOR_LEN: usize,
@@ -32,8 +33,14 @@ pub fn generate_vectorized_trace_rows<
     );
 
     let nrows = n.div_ceil(VECTOR_LEN);
-    let ncols = num_cols::<WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>()
-        * VECTOR_LEN;
+    let ncols = num_cols::<
+        WIDTH,
+        SBOX_DEGREE,
+        SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
+        HALF_FULL_ROUNDS,
+        PARTIAL_ROUNDS,
+    >() * VECTOR_LEN;
     let mut vec = Vec::with_capacity((nrows * ncols) << extra_capacity_bits);
     let trace = &mut vec.spare_capacity_mut()[..nrows * ncols];
     let trace = RowMajorMatrixViewMut::new(trace, ncols);
@@ -44,6 +51,7 @@ pub fn generate_vectorized_trace_rows<
             WIDTH,
             SBOX_DEGREE,
             SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
             HALF_FULL_ROUNDS,
             PARTIAL_ROUNDS,
         >>()
@@ -59,6 +67,7 @@ pub fn generate_vectorized_trace_rows<
             WIDTH,
             SBOX_DEGREE,
             SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
             HALF_FULL_ROUNDS,
             PARTIAL_ROUNDS,
         >(perm, input, round_constants);
@@ -79,6 +88,7 @@ pub fn generate_trace_rows<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >(
@@ -92,7 +102,14 @@ pub fn generate_trace_rows<
         "Callers expected to pad inputs to a power of two"
     );
 
-    let ncols = num_cols::<WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>();
+    let ncols = num_cols::<
+        WIDTH,
+        SBOX_DEGREE,
+        SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
+        HALF_FULL_ROUNDS,
+        PARTIAL_ROUNDS,
+    >();
     let mut vec = Vec::with_capacity((n * ncols) << extra_capacity_bits);
     let trace = &mut vec.spare_capacity_mut()[..n * ncols];
     let trace = RowMajorMatrixViewMut::new(trace, ncols);
@@ -103,6 +120,7 @@ pub fn generate_trace_rows<
             WIDTH,
             SBOX_DEGREE,
             SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
             HALF_FULL_ROUNDS,
             PARTIAL_ROUNDS,
         >>()
@@ -118,6 +136,7 @@ pub fn generate_trace_rows<
             WIDTH,
             SBOX_DEGREE,
             SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
             HALF_FULL_ROUNDS,
             PARTIAL_ROUNDS,
         >(perm, input, constants);
@@ -137,6 +156,7 @@ fn generate_trace_rows_for_perm<
     const WIDTH: usize,
     const SBOX_DEGREE: u64,
     const SBOX_REGISTERS: usize,
+    const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >(
@@ -145,6 +165,7 @@ fn generate_trace_rows_for_perm<
         WIDTH,
         SBOX_DEGREE,
         SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
     >,
@@ -163,10 +184,13 @@ fn generate_trace_rows_for_perm<
     for (full_round, constants) in perm
         .beginning_full_rounds
         .iter_mut()
-        .zip(&constants.beginning_full_round_constants)
+        .zip(constants.beginning_full_round_constants.chunks_exact(2))
     {
         generate_full_round::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
-            &mut state, full_round, constants,
+            &mut state,
+            full_round,
+            &constants[0],
+            &constants[1],
         );
     }
 
@@ -185,10 +209,13 @@ fn generate_trace_rows_for_perm<
     for (full_round, constants) in perm
         .ending_full_rounds
         .iter_mut()
-        .zip(&constants.ending_full_round_constants)
+        .zip(constants.ending_full_round_constants.chunks_exact(2))
     {
         generate_full_round::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
-            &mut state, full_round, constants,
+            &mut state,
+            full_round,
+            &constants[0],
+            &constants[1],
         );
     }
 }
@@ -203,19 +230,30 @@ fn generate_full_round<
 >(
     state: &mut [F; WIDTH],
     full_round: &mut FullRound<MaybeUninit<F>, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>,
-    round_constants: &[F; WIDTH],
+    round_constants_1: &[F; WIDTH],
+    round_constants_2: &[F; WIDTH],
 ) {
     // Combine addition of round constants and S-box application in a single loop
     for ((state_i, const_i), sbox_i) in state
         .iter_mut()
-        .zip(round_constants.iter())
+        .zip(round_constants_1.iter())
         .zip(full_round.sbox.iter_mut())
     {
         *state_i += *const_i;
         generate_sbox(sbox_i, state_i);
     }
-
     LinearLayers::external_linear_layer(state);
+
+    for ((state_i, const_i), sbox_i) in state
+        .iter_mut()
+        .zip(round_constants_2.iter())
+        .zip(full_round.sbox.iter_mut())
+    {
+        *state_i += *const_i;
+        generate_sbox(sbox_i, state_i);
+    }
+    LinearLayers::external_linear_layer(state);
+
     full_round
         .post
         .iter_mut()
