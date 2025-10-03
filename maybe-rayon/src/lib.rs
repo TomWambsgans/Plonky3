@@ -34,7 +34,7 @@ pub mod prelude {
 #[cfg(feature = "parallel")]
 #[allow(deprecated)]
 pub mod iter {
-    pub use rayon::iter::{repeat, repeatn as repeat_n};
+    pub use rayon::iter::{repeat, repeat_n};
 }
 
 #[cfg(not(feature = "parallel"))]

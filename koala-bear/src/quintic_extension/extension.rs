@@ -143,7 +143,7 @@ impl<F: QuinticExtendable> HasFrobenius<F> for QuinticExtensionField<F> {
     }
 
     #[inline]
-    fn frobenius_inv(&self) -> Self {
+    fn pseudo_inv(&self) -> Self {
         unimplemented!()
     }
 }
