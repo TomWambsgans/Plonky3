@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 
 use p3_field::PrimeField;
@@ -7,82 +6,12 @@ use p3_maybe_rayon::prelude::*;
 use p3_poseidon2::GenericPoseidon2LinearLayers;
 use tracing::instrument;
 
-use crate::columns::{Poseidon2Cols, num_cols};
-use crate::{FullRound, PartialRound, RoundConstants, SBox};
-
-#[instrument(name = "generate vectorized Poseidon2 trace", skip_all)]
-pub fn generate_vectorized_trace_rows<
-    F: PrimeField,
-    LinearLayers: GenericPoseidon2LinearLayers<WIDTH>,
-    const WIDTH: usize,
-    const SBOX_DEGREE: u64,
-    const SBOX_REGISTERS: usize,
-    const QUARTER_FULL_ROUNDS: usize,
-    const HALF_FULL_ROUNDS: usize,
-    const PARTIAL_ROUNDS: usize,
-    const VECTOR_LEN: usize,
->(
-    inputs: Vec<[F; WIDTH]>,
-    round_constants: &RoundConstants<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
-    extra_capacity_bits: usize,
-) -> RowMajorMatrix<F> {
-    let n = inputs.len();
-    assert!(
-        n.is_multiple_of(VECTOR_LEN) && (n / VECTOR_LEN).is_power_of_two(),
-        "Callers expected to pad inputs to VECTOR_LEN times a power of two"
-    );
-
-    let nrows = n.div_ceil(VECTOR_LEN);
-    let ncols = num_cols::<
-        WIDTH,
-        SBOX_DEGREE,
-        SBOX_REGISTERS,
-        QUARTER_FULL_ROUNDS,
-        HALF_FULL_ROUNDS,
-        PARTIAL_ROUNDS,
-    >() * VECTOR_LEN;
-    let mut vec = Vec::with_capacity((nrows * ncols) << extra_capacity_bits);
-    let trace = &mut vec.spare_capacity_mut()[..nrows * ncols];
-    let trace = RowMajorMatrixViewMut::new(trace, ncols);
-
-    let (prefix, perms, suffix) = unsafe {
-        trace.values.align_to_mut::<Poseidon2Cols<
-            MaybeUninit<F>,
-            WIDTH,
-            SBOX_DEGREE,
-            SBOX_REGISTERS,
-            QUARTER_FULL_ROUNDS,
-            HALF_FULL_ROUNDS,
-            PARTIAL_ROUNDS,
-        >>()
-    };
-    assert!(prefix.is_empty(), "Alignment should match");
-    assert!(suffix.is_empty(), "Alignment should match");
-    assert_eq!(perms.len(), n);
-
-    perms.par_iter_mut().zip(inputs).for_each(|(perm, input)| {
-        generate_trace_rows_for_perm::<
-            F,
-            LinearLayers,
-            WIDTH,
-            SBOX_DEGREE,
-            SBOX_REGISTERS,
-            QUARTER_FULL_ROUNDS,
-            HALF_FULL_ROUNDS,
-            PARTIAL_ROUNDS,
-        >(perm, input, round_constants);
-    });
-
-    unsafe {
-        vec.set_len(nrows * ncols);
-    }
-
-    RowMajorMatrix::new(vec, ncols)
-}
+use super::columns::{Poseidon2Cols, num_cols};
+use super::{FullRound, PartialRound, RoundConstants16, SBox};
 
 // TODO: Take generic iterable
 #[instrument(name = "generate Poseidon2 trace", skip_all)]
-pub fn generate_trace_rows<
+pub fn generate_trace_rows_16<
     F: PrimeField,
     LinearLayers: GenericPoseidon2LinearLayers<WIDTH>,
     const WIDTH: usize,
@@ -92,8 +21,10 @@ pub fn generate_trace_rows<
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >(
-    inputs: Vec<[F; WIDTH]>,
-    constants: &RoundConstants<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
+    inputs: &[[F; WIDTH]],
+    compress: &[bool],
+    index_res: &[usize],
+    constants: &RoundConstants16<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
     extra_capacity_bits: usize,
 ) -> RowMajorMatrix<F> {
     let n = inputs.len();
@@ -101,6 +32,8 @@ pub fn generate_trace_rows<
         n.is_power_of_two(),
         "Callers expected to pad inputs to a power of two"
     );
+    assert_eq!(n, compress.len());
+    assert_eq!(n, index_res.len());
 
     let ncols = num_cols::<
         WIDTH,
@@ -129,18 +62,23 @@ pub fn generate_trace_rows<
     assert!(suffix.is_empty(), "Alignment should match");
     assert_eq!(perms.len(), n);
 
-    perms.par_iter_mut().zip(inputs).for_each(|(perm, input)| {
-        generate_trace_rows_for_perm::<
-            F,
-            LinearLayers,
-            WIDTH,
-            SBOX_DEGREE,
-            SBOX_REGISTERS,
-            QUARTER_FULL_ROUNDS,
-            HALF_FULL_ROUNDS,
-            PARTIAL_ROUNDS,
-        >(perm, input, constants);
-    });
+    perms
+        .par_iter_mut()
+        .zip(inputs)
+        .zip(compress)
+        .zip(index_res)
+        .for_each(|(((perm, input), compress), index_res)| {
+            generate_trace_rows_for_perm::<
+                F,
+                LinearLayers,
+                WIDTH,
+                SBOX_DEGREE,
+                SBOX_REGISTERS,
+                QUARTER_FULL_ROUNDS,
+                HALF_FULL_ROUNDS,
+                PARTIAL_ROUNDS,
+            >(perm, *input, *compress, *index_res, constants);
+        });
 
     unsafe {
         vec.set_len(n * ncols);
@@ -170,7 +108,9 @@ fn generate_trace_rows_for_perm<
         PARTIAL_ROUNDS,
     >,
     mut state: [F; WIDTH],
-    constants: &RoundConstants<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
+    compress: bool, // if true, we zero out the initial field elements of the final state (except the last 8)
+    index_res: usize,
+    constants: &RoundConstants16<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
 ) {
     perm.inputs
         .iter_mut()
@@ -218,6 +158,19 @@ fn generate_trace_rows_for_perm<
             &constants[1],
         );
     }
+
+    if compress {
+        perm.ending_full_rounds.last_mut().unwrap().post[8..16]
+            .iter_mut()
+            .for_each(|x| {
+                x.write(F::ZERO);
+            });
+    }
+
+    perm.compress.write(if compress { F::ONE } else { F::ZERO });
+    perm.index_res_1.write(F::from_usize(index_res));
+    perm.index_res_2
+        .write(F::from_usize(if compress { 0 } else { index_res + 1 }));
 }
 
 #[inline]

@@ -2,21 +2,17 @@ use core::borrow::Borrow;
 use core::marker::PhantomData;
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{PrimeCharacteristicRing, PrimeField};
+use p3_field::PrimeCharacteristicRing;
 use p3_matrix::Matrix;
-use p3_matrix::dense::RowMajorMatrix;
 use p3_poseidon2::GenericPoseidon2LinearLayers;
-use rand::distr::{Distribution, StandardUniform};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
-use crate::columns::{Poseidon2Cols, num_cols};
-use crate::constants::RoundConstants;
-use crate::{FullRound, PartialRound, SBox, generate_trace_rows};
+use super::columns::{Poseidon2Cols, num_cols};
+use super::constants::RoundConstants16;
+use super::{FullRound, PartialRound, SBox};
 
 /// Assumes the field size is at least 16 bits.
 #[derive(Debug, Clone)]
-pub struct Poseidon2Air<
+pub struct Poseidon2Air16<
     F: PrimeCharacteristicRing,
     LinearLayers,
     const WIDTH: usize,
@@ -26,7 +22,7 @@ pub struct Poseidon2Air<
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 > {
-    pub(crate) constants: RoundConstants<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
+    pub(crate) constants: RoundConstants16<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
     _phantom: PhantomData<LinearLayers>,
 }
 
@@ -40,7 +36,7 @@ impl<
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >
-    Poseidon2Air<
+    Poseidon2Air16<
         F,
         LinearLayers,
         WIDTH,
@@ -52,36 +48,12 @@ impl<
     >
 {
     pub const fn new(
-        constants: RoundConstants<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
+        constants: RoundConstants16<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
     ) -> Self {
         Self {
             constants,
             _phantom: PhantomData,
         }
-    }
-
-    pub fn generate_trace_rows(
-        &self,
-        num_hashes: usize,
-        extra_capacity_bits: usize,
-    ) -> RowMajorMatrix<F>
-    where
-        F: PrimeField,
-        LinearLayers: GenericPoseidon2LinearLayers<WIDTH>,
-        StandardUniform: Distribution<[F; WIDTH]>,
-    {
-        let mut rng = SmallRng::seed_from_u64(1);
-        let inputs = (0..num_hashes).map(|_| rng.random()).collect();
-        generate_trace_rows::<
-            _,
-            LinearLayers,
-            WIDTH,
-            SBOX_DEGREE,
-            SBOX_REGISTERS,
-            QUARTER_FULL_ROUNDS,
-            HALF_FULL_ROUNDS,
-            PARTIAL_ROUNDS,
-        >(inputs, &self.constants, extra_capacity_bits)
     }
 }
 
@@ -95,7 +67,7 @@ impl<
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 > BaseAir<F>
-    for Poseidon2Air<
+    for Poseidon2Air16<
         F,
         LinearLayers,
         WIDTH,
@@ -117,7 +89,7 @@ impl<
         >()
     }
     fn degree(&self) -> usize {
-        9
+        10
     }
     fn structured(&self) -> bool {
         false
@@ -134,7 +106,7 @@ pub(crate) fn eval<
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >(
-    air: &Poseidon2Air<
+    air: &Poseidon2Air16<
         AB::F,
         LinearLayers,
         WIDTH,
@@ -178,7 +150,7 @@ pub(crate) fn eval<
         );
     }
 
-    for round in 0..QUARTER_FULL_ROUNDS {
+    for round in 0..QUARTER_FULL_ROUNDS - 1 {
         eval_2_full_rounds::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
             &mut state,
             &local.ending_full_rounds[round],
@@ -187,6 +159,20 @@ pub(crate) fn eval<
             builder,
         );
     }
+
+    eval_last_2_full_rounds::<_, LinearLayers, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>(
+        &mut state,
+        &local.ending_full_rounds[QUARTER_FULL_ROUNDS - 1],
+        &air.constants.ending_full_round_constants[2 * (QUARTER_FULL_ROUNDS - 1)],
+        &air.constants.ending_full_round_constants[2 * (QUARTER_FULL_ROUNDS - 1) + 1],
+        local.compress.clone(),
+        builder,
+    );
+
+    builder.assert_eq(
+        local.index_res_2.clone(),
+        (local.index_res_1.clone() + AB::F::ONE) * -(local.compress.clone() - AB::F::ONE),
+    );
 }
 
 impl<
@@ -199,7 +185,7 @@ impl<
     const QUARTER_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 > Air<AB>
-    for Poseidon2Air<
+    for Poseidon2Air16<
         AB::F,
         LinearLayers,
         WIDTH,
@@ -255,6 +241,44 @@ fn eval_2_full_rounds<
     LinearLayers::external_linear_layer(state);
     for (state_i, post_i) in state.iter_mut().zip(&full_round.post) {
         builder.assert_eq(state_i.clone(), post_i.clone());
+        *state_i = post_i.clone().into();
+    }
+}
+
+#[inline]
+fn eval_last_2_full_rounds<
+    AB: AirBuilder,
+    LinearLayers: GenericPoseidon2LinearLayers<WIDTH>,
+    const WIDTH: usize,
+    const SBOX_DEGREE: u64,
+    const SBOX_REGISTERS: usize,
+>(
+    state: &mut [AB::Expr; WIDTH],
+    full_round: &FullRound<AB::Var, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>,
+    round_constants_1: &[AB::F; WIDTH],
+    round_constants_2: &[AB::F; WIDTH],
+    compress: AB::Var,
+    builder: &mut AB,
+) {
+    for (i, (s, r)) in state.iter_mut().zip(round_constants_1.iter()).enumerate() {
+        *s += r.clone();
+        eval_sbox(&full_round.sbox[i], s, builder);
+    }
+    LinearLayers::external_linear_layer(state);
+    for (i, (s, r)) in state.iter_mut().zip(round_constants_2.iter()).enumerate() {
+        *s += r.clone();
+        eval_sbox(&full_round.sbox[i], s, builder);
+    }
+    LinearLayers::external_linear_layer(state);
+    for (state_i, post_i) in state.iter_mut().zip(&full_round.post).take(WIDTH / 2) {
+        builder.assert_eq(state_i.clone(), post_i.clone());
+        *state_i = post_i.clone().into();
+    }
+    for (state_i, post_i) in state.iter_mut().zip(&full_round.post).skip(WIDTH / 2) {
+        builder.assert_eq(
+            state_i.clone() * -(compress.clone() - AB::F::ONE),
+            post_i.clone(),
+        );
         *state_i = post_i.clone().into();
     }
 }
