@@ -21,13 +21,15 @@ pub struct Poseidon2Cols<
     pub inputs: [T; WIDTH],
 
     /// Beginning Full Rounds
-    pub beginning_full_rounds: [FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; QUARTER_FULL_ROUNDS],
+    pub beginning_full_rounds:
+        [FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; QUARTER_FULL_ROUNDS],
 
     /// Partial Rounds
     pub partial_rounds: [PartialRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; PARTIAL_ROUNDS],
 
     /// Ending Full Rounds
-    pub ending_full_rounds: [FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>; QUARTER_FULL_ROUNDS],
+    pub last_full_round_1: FullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>,
+    pub last_full_round_2: LastFullRound<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS>,
 }
 
 /// Full round columns.
@@ -37,6 +39,16 @@ pub struct FullRound<T, const WIDTH: usize, const SBOX_DEGREE: u64, const SBOX_R
     pub sbox: [SBox<T, SBOX_DEGREE, SBOX_REGISTERS>; WIDTH],
     /// The post-state, i.e. the entire layer after this full round.
     pub post: [T; WIDTH],
+}
+
+/// Full round columns.
+#[repr(C)]
+pub struct LastFullRound<T, const WIDTH: usize, const SBOX_DEGREE: u64, const SBOX_REGISTERS: usize>
+{
+    /// Possible intermediate results within each S-box.
+    pub sbox: [SBox<T, SBOX_DEGREE, SBOX_REGISTERS>; WIDTH],
+    /// The post-state, i.e. the entire layer after this full round.
+    pub post: [T; 8],
 }
 
 /// Partial round columns.
@@ -66,8 +78,17 @@ pub const fn num_cols<
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
 >() -> usize {
-    size_of::<Poseidon2Cols<u8, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>(
-    )
+    size_of::<
+        Poseidon2Cols<
+            u8,
+            WIDTH,
+            SBOX_DEGREE,
+            SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
+            HALF_FULL_ROUNDS,
+            PARTIAL_ROUNDS,
+        >,
+    >()
 }
 
 pub const fn make_col_map<
@@ -77,7 +98,15 @@ pub const fn make_col_map<
     const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
->() -> Poseidon2Cols<usize, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS> {
+>() -> Poseidon2Cols<
+    usize,
+    WIDTH,
+    SBOX_DEGREE,
+    SBOX_REGISTERS,
+    QUARTER_FULL_ROUNDS,
+    HALF_FULL_ROUNDS,
+    PARTIAL_ROUNDS,
+> {
     todo!()
     // let indices_arr = indices_arr::<
     //     { num_cols::<WIDTH, SBOX_DEGREE, SBOX_REGISTERS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>() },
@@ -106,13 +135,30 @@ impl<
     const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
-> Borrow<Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>
-    for [T]
+>
+    Borrow<
+        Poseidon2Cols<
+            T,
+            WIDTH,
+            SBOX_DEGREE,
+            SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
+            HALF_FULL_ROUNDS,
+            PARTIAL_ROUNDS,
+        >,
+    > for [T]
 {
     fn borrow(
         &self,
-    ) -> &Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
-    {
+    ) -> &Poseidon2Cols<
+        T,
+        WIDTH,
+        SBOX_DEGREE,
+        SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
+        HALF_FULL_ROUNDS,
+        PARTIAL_ROUNDS,
+    > {
         // debug_assert_eq!(self.len(), NUM_COLS);
         let (prefix, shorts, suffix) = unsafe {
             self.align_to::<Poseidon2Cols<
@@ -140,13 +186,30 @@ impl<
     const QUARTER_FULL_ROUNDS: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
-> BorrowMut<Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>>
-    for [T]
+>
+    BorrowMut<
+        Poseidon2Cols<
+            T,
+            WIDTH,
+            SBOX_DEGREE,
+            SBOX_REGISTERS,
+            QUARTER_FULL_ROUNDS,
+            HALF_FULL_ROUNDS,
+            PARTIAL_ROUNDS,
+        >,
+    > for [T]
 {
     fn borrow_mut(
         &mut self,
-    ) -> &mut Poseidon2Cols<T, WIDTH, SBOX_DEGREE, SBOX_REGISTERS, QUARTER_FULL_ROUNDS, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
-    {
+    ) -> &mut Poseidon2Cols<
+        T,
+        WIDTH,
+        SBOX_DEGREE,
+        SBOX_REGISTERS,
+        QUARTER_FULL_ROUNDS,
+        HALF_FULL_ROUNDS,
+        PARTIAL_ROUNDS,
+    > {
         // debug_assert_eq!(self.len(), NUM_COLS);
         let (prefix, shorts, suffix) = unsafe {
             self.align_to_mut::<Poseidon2Cols<

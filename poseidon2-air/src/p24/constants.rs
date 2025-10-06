@@ -4,7 +4,7 @@ use rand::distr::{Distribution, StandardUniform};
 
 /// Round constants for Poseidon2, in a format that's convenient for the AIR.
 #[derive(Debug, Clone)]
-pub struct RoundConstants<
+pub struct RoundConstants24<
     F: PrimeCharacteristicRing,
     const WIDTH: usize,
     const HALF_FULL_ROUNDS: usize,
@@ -20,7 +20,7 @@ impl<
     const WIDTH: usize,
     const HALF_FULL_ROUNDS: usize,
     const PARTIAL_ROUNDS: usize,
-> RoundConstants<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
+> RoundConstants24<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>
 {
     pub const fn new(
         beginning_full_round_constants: [[F; WIDTH]; HALF_FULL_ROUNDS],
