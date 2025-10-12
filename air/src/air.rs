@@ -6,8 +6,8 @@ use p3_matrix::dense::RowMajorMatrix;
 
 /// The underlying structure of an AIR.
 pub trait BaseAir<F>: Sync {
-    /// The number of columns (a.k.a. registers) in this AIR.
-    fn width(&self) -> usize;
+    fn width_f(&self) -> usize;
+    fn width_ef(&self) -> usize;
 
     fn degree(&self) -> usize;
 
@@ -59,7 +59,7 @@ pub trait AirBuilder: Sized {
     type F: PrimeCharacteristicRing + Sync;
 
     /// Serves as the output type for an AIR constraint evaluation.
-    type Expr: Algebra<Self::F> + Algebra<Self::Var>;
+    type Expr: Algebra<Self::F> + Algebra<Self::Var> + Send + Sync;
 
     /// The type of the variable appearing in the trace matrix.
     ///
@@ -78,68 +78,23 @@ pub trait AirBuilder: Sized {
         + Mul<Self::Var, Output = Self::Expr>
         + Mul<Self::Expr, Output = Self::Expr>;
 
+    type Var2: Algebra<Self::Expr> + Algebra<Self::Var> + Send + Sync + Clone;
+
     /// Matrix type holding variables.
-    type M: Matrix<Self::Var>;
+    type M1: Matrix<Self::Var>;
+
+    type M2: Matrix<Self::Var2>;
 
     /// Return the matrix representing the main (primary) trace registers.
-    fn main(&self) -> Self::M;
-
-    /// Expression evaluating to 1 on the first row, 0 elsewhere.
-    fn is_first_row(&self) -> Self::Expr;
-
-    /// Expression evaluating to 1 on the last row, 0 elsewhere.
-    fn is_last_row(&self) -> Self::Expr;
-
-    /// Expression evaluating to 1 on all transition rows (not last row), 0 on last row.
-    fn is_transition(&self) -> Self::Expr {
-        self.is_transition_window(2)
-    }
-
-    /// Expression evaluating to 1 on rows except the last `size - 1` rows, 0 otherwise.
-    fn is_transition_window(&self, size: usize) -> Self::Expr;
-
-    /// Returns a sub-builder whose constraints are enforced only when `condition` is nonzero.
-    fn when<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<'_, Self> {
-        FilteredAirBuilder {
-            inner: self,
-            condition: condition.into(),
-        }
-    }
-
-    /// Returns a sub-builder whose constraints are enforced only when `x != y`.
-    fn when_ne<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(
-        &mut self,
-        x: I1,
-        y: I2,
-    ) -> FilteredAirBuilder<'_, Self> {
-        self.when(x.into() - y.into())
-    }
-
-    /// Returns a sub-builder whose constraints are enforced only on the first row.
-    fn when_first_row(&mut self) -> FilteredAirBuilder<'_, Self> {
-        self.when(self.is_first_row())
-    }
-
-    /// Returns a sub-builder whose constraints are enforced only on the last row.
-    fn when_last_row(&mut self) -> FilteredAirBuilder<'_, Self> {
-        self.when(self.is_last_row())
-    }
-
-    /// Returns a sub-builder whose constraints are enforced on all rows except the last.
-    fn when_transition(&mut self) -> FilteredAirBuilder<'_, Self> {
-        self.when(self.is_transition())
-    }
-
-    /// Returns a sub-builder whose constraints are enforced on all rows except the last `size - 1`.
-    fn when_transition_window(&mut self, size: usize) -> FilteredAirBuilder<'_, Self> {
-        self.when(self.is_transition_window(size))
-    }
+    fn main(&self) -> (Self::M1, Self::M2);
 
     /// Assert that the given element is zero.
     ///
     /// Where possible, batching multiple assert_zero calls
     /// into a single assert_zeros call will improve performance.
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I);
+
+    fn assert_zero_2(&mut self, x: Self::Var2);
 
     /// Assert that every element of a given array is 0.
     ///
@@ -166,6 +121,10 @@ pub trait AirBuilder: Sized {
         self.assert_zero(x.into() - y.into());
     }
 
+    fn assert_eq_2(&mut self, x: Self::Var2, y: Self::Var2) {
+        self.assert_zero_2(x - y);
+    }
+
     /// Assert that `x` is a boolean, i.e. either `0` or `1`.
     ///
     /// Where possible, batching multiple assert_bool calls
@@ -187,7 +146,7 @@ pub trait AirBuilderWithPublicValues: AirBuilder {
 /// Trait for `AirBuilder` variants that include preprocessed data columns.
 pub trait PairBuilder: AirBuilder {
     /// Return a matrix of preprocessed registers.
-    fn preprocessed(&self) -> Self::M;
+    fn preprocessed(&self) -> Self::M1;
 }
 
 /// Extension of `AirBuilder` for working over extension fields.
@@ -237,80 +196,4 @@ pub trait PermutationAirBuilder: ExtensionBuilder {
 
     /// Return the list of randomness values for permutation argument.
     fn permutation_randomness(&self) -> &[Self::RandomVar];
-}
-
-/// A wrapper around an [`AirBuilder`] that enforces constraints only when a specified condition is met.
-///
-/// This struct allows selectively applying constraints to certain rows or under certain conditions in the AIR,
-/// without modifying the underlying logic. All constraints asserted through this filtered builder will be
-/// multiplied by the given `condition`, effectively disabling them when `condition` evaluates to zero.
-#[derive(Debug)]
-pub struct FilteredAirBuilder<'a, AB: AirBuilder> {
-    /// Reference to the underlying inner [`AirBuilder`] where constraints are ultimately recorded.
-    pub inner: &'a mut AB,
-
-    /// Condition expression that controls when the constraints are enforced.
-    ///
-    /// If `condition` evaluates to zero, constraints asserted through this builder have no effect.
-    condition: AB::Expr,
-}
-
-impl<AB: AirBuilder> FilteredAirBuilder<'_, AB> {
-    pub fn condition(&self) -> AB::Expr {
-        self.condition.clone()
-    }
-}
-
-impl<AB: AirBuilder> AirBuilder for FilteredAirBuilder<'_, AB> {
-    type F = AB::F;
-    type Expr = AB::Expr;
-    type Var = AB::Var;
-    type M = AB::M;
-
-    fn main(&self) -> Self::M {
-        self.inner.main()
-    }
-
-    fn is_first_row(&self) -> Self::Expr {
-        self.inner.is_first_row()
-    }
-
-    fn is_last_row(&self) -> Self::Expr {
-        self.inner.is_last_row()
-    }
-
-    fn is_transition_window(&self, size: usize) -> Self::Expr {
-        self.inner.is_transition_window(size)
-    }
-
-    fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        self.inner.assert_zero(self.condition() * x.into());
-    }
-}
-
-impl<AB: ExtensionBuilder> ExtensionBuilder for FilteredAirBuilder<'_, AB> {
-    type EF = AB::EF;
-    type ExprEF = AB::ExprEF;
-    type VarEF = AB::VarEF;
-
-    fn assert_zero_ext<I>(&mut self, x: I)
-    where
-        I: Into<Self::ExprEF>,
-    {
-        self.inner.assert_zero_ext(x.into() * self.condition());
-    }
-}
-
-impl<AB: PermutationAirBuilder> PermutationAirBuilder for FilteredAirBuilder<'_, AB> {
-    type MP = AB::MP;
-
-    type RandomVar = AB::RandomVar;
-
-    fn permutation(&self) -> Self::MP {
-        self.inner.permutation()
-    }
-
-    fn permutation_randomness(&self) -> &[Self::RandomVar] {
-        self.inner.permutation_randomness()
-    }
 }

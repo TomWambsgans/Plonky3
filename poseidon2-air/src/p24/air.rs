@@ -80,7 +80,7 @@ impl<
         PARTIAL_ROUNDS,
     >
 {
-    fn width(&self) -> usize {
+    fn width_f(&self) -> usize {
         num_cols::<
             WIDTH,
             SBOX_DEGREE,
@@ -89,6 +89,9 @@ impl<
             HALF_FULL_ROUNDS,
             PARTIAL_ROUNDS,
         >()
+    }
+    fn width_ef(&self) -> usize {
+        0
     }
     fn degree(&self) -> usize {
         9
@@ -191,7 +194,7 @@ impl<
 {
     #[inline]
     fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
+        let main = builder.main().0;
         let local = main.row_slice(0).expect("The matrix is empty?");
         let local = (*local).borrow();
 
