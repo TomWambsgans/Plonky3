@@ -23,13 +23,8 @@ pub fn generate_trace_rows_24<
 >(
     inputs: &[[F; WIDTH]],
     constants: &RoundConstants24<F, WIDTH, HALF_FULL_ROUNDS, PARTIAL_ROUNDS>,
-    extra_capacity_bits: usize,
 ) -> RowMajorMatrix<F> {
     let n = inputs.len();
-    assert!(
-        n.is_power_of_two(),
-        "Callers expected to pad inputs to a power of two"
-    );
 
     let ncols = num_cols::<
         WIDTH,
@@ -39,7 +34,7 @@ pub fn generate_trace_rows_24<
         HALF_FULL_ROUNDS,
         PARTIAL_ROUNDS,
     >();
-    let mut vec = Vec::with_capacity((n * ncols) << extra_capacity_bits);
+    let mut vec = Vec::with_capacity(n * ncols);
     let trace = &mut vec.spare_capacity_mut()[..n * ncols];
     let trace = RowMajorMatrixViewMut::new(trace, ncols);
 
