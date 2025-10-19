@@ -4,7 +4,6 @@ use p3_field::PrimeField;
 use p3_matrix::dense::{RowMajorMatrix, RowMajorMatrixViewMut};
 use p3_maybe_rayon::prelude::*;
 use p3_poseidon2::GenericPoseidon2LinearLayers;
-use tracing::instrument;
 
 use crate::p24::LastFullRound;
 
@@ -12,7 +11,6 @@ use super::columns::{Poseidon2Cols, num_cols};
 use super::{FullRound, PartialRound, RoundConstants24, SBox};
 
 // TODO: Take generic iterable
-#[instrument(name = "generate Poseidon2 trace", skip_all)]
 pub fn generate_trace_rows_24<
     F: PrimeField,
     LinearLayers: GenericPoseidon2LinearLayers<WIDTH>,
@@ -81,7 +79,7 @@ pub fn generate_trace_rows_24<
 }
 
 /// `rows` will normally consist of 24 rows, with an exception for the final row.
-fn generate_trace_rows_for_perm<
+pub fn generate_trace_rows_for_perm<
     F: PrimeField,
     LinearLayers: GenericPoseidon2LinearLayers<WIDTH>,
     const WIDTH: usize,
