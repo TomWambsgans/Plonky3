@@ -24,6 +24,7 @@ pub trait InternalLayerBaseParameters<MP: MontyParameters, const WIDTH: usize>:
 
     /// Perform the matrix multiplication corresponding to the internal linear
     /// layer.
+    #[inline(always)]
     fn generic_internal_linear_layer<R: PrimeCharacteristicRing>(state: &mut [R; WIDTH]) {
         // We mostly delegate to internal_layer_mat_mul but have to handle state[0] separately.
         let part_sum: R = state[1..].iter().cloned().sum();
@@ -128,6 +129,7 @@ where
     FP: FieldParameters,
     ILBP: InternalLayerBaseParameters<FP, WIDTH>,
 {
+    #[inline(always)]
     fn internal_linear_layer<R: PrimeCharacteristicRing>(state: &mut [R; WIDTH]) {
         ILBP::generic_internal_linear_layer(state);
     }

@@ -36,6 +36,7 @@ pub trait GenericPoseidon2LinearLayers<const WIDTH: usize>: Sync {
 
     /// A generic implementation of the matrix multiplication
     /// corresponding to the external linear layer.
+    #[inline(always)]
     fn external_linear_layer<R: PrimeCharacteristicRing>(state: &mut [R; WIDTH]) {
         mds_light_permutation(state, &MDSMat4);
     }

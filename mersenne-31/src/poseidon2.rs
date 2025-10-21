@@ -119,6 +119,7 @@ impl<const WIDTH: usize> ExternalLayer<Mersenne31, WIDTH, MERSENNE31_S_BOX_DEGRE
 }
 
 impl GenericPoseidon2LinearLayers<16> for GenericPoseidon2LinearLayersMersenne31 {
+    #[inline(always)]
     fn internal_linear_layer<R: PrimeCharacteristicRing>(state: &mut [R; 16]) {
         let part_sum: R = state[1..].iter().cloned().sum();
         let full_sum = part_sum.clone() + state[0].clone();
@@ -142,6 +143,7 @@ impl GenericPoseidon2LinearLayers<16> for GenericPoseidon2LinearLayersMersenne31
 }
 
 impl GenericPoseidon2LinearLayers<24> for GenericPoseidon2LinearLayersMersenne31 {
+    #[inline(always)]
     fn internal_linear_layer<R: PrimeCharacteristicRing>(state: &mut [R; 24]) {
         let part_sum: R = state[1..].iter().cloned().sum();
         let full_sum = part_sum.clone() + state[0].clone();
