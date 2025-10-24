@@ -165,6 +165,17 @@ pub unsafe trait PackedValue: 'static + Copy + Send + Sync {
         let n = buf.len() * Self::WIDTH;
         unsafe { slice::from_raw_parts(buf_ptr, n) }
     }
+
+    #[inline]
+    #[must_use]
+    fn unpack_slice_mut(buf: &mut [Self]) -> &mut [Self::Value] {
+        const {
+            assert!(align_of::<Self>() >= align_of::<Self::Value>());
+        }
+        let buf_ptr = buf.as_mut_ptr().cast::<Self::Value>();
+        let n = buf.len() * Self::WIDTH;
+        unsafe { slice::from_raw_parts_mut(buf_ptr, n) }
+    }
 }
 
 unsafe impl<T: Packable, const WIDTH: usize> PackedValue for [T; WIDTH] {
