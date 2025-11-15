@@ -15,14 +15,6 @@ pub trait BaseAir<F>: Sync {
     fn columns_with_shift(&self) -> Vec<usize>;
 }
 
-/// An extension of `BaseAir` that includes support for public values.
-pub trait BaseAirWithPublicValues<F>: BaseAir<F> {
-    /// Return the number of expected public values.
-    fn num_public_values(&self) -> usize {
-        0
-    }
-}
-
 /// An algebraic intermediate representation (AIR) definition.
 ///
 /// Contains an evaluation function for computing the constraints of the AIR.
@@ -39,6 +31,8 @@ pub trait Air<AB: AirBuilder>: BaseAir<AB::F> {
     /// # Arguments
     /// - `builder`: Mutable reference to an `AirBuilder` for defining constraints.
     fn eval(&self, builder: &mut AB);
+
+    fn eval_custom(&self, inputs: &[AB::Expr]) -> AB::FinalOutput;
 }
 
 /// A builder which contains both a trace on which AIR constraints can be evaluated as well as a method of accumulating the AIR constraint evaluations.
@@ -71,6 +65,9 @@ pub trait AirBuilder: Sized {
         + Mul<Self::F, Output = Self::Expr>
         + Mul<Self::Var, Output = Self::Expr>
         + Mul<Self::Expr, Output = Self::Expr>;
+
+    // the final type, after batching with the random challenges (extension field, in practice)
+    type FinalOutput;
 
     /// Return the matrix representing the main (primary) trace registers.
     fn main(&self) -> &[Self::Var];
@@ -113,6 +110,8 @@ pub trait AirBuilder: Sized {
     fn assert_bool<I: Into<Self::Expr>>(&mut self, x: I) {
         self.assert_zero(x.into().bool_check());
     }
+
+    fn add_custom(&mut self, value: Self::FinalOutput);
 }
 
 /// Extension trait for `AirBuilder` providing access to public values.

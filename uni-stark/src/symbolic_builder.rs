@@ -85,6 +85,7 @@ impl<F: Field> AirBuilder for SymbolicAirBuilder<F> {
     type F = F;
     type Expr = SymbolicExpression<F>;
     type Var = SymbolicVariable<F>;
+    type FinalOutput = ();
 
     fn main(&self) -> &[Self::Var] {
         &self.main
@@ -92,5 +93,9 @@ impl<F: Field> AirBuilder for SymbolicAirBuilder<F> {
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
         self.constraints.push(x.into());
+    }
+
+    fn add_custom(&mut self, value: Self::FinalOutput) {
+        let _ = value;
     }
 }
