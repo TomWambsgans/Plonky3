@@ -766,7 +766,7 @@ pub trait Field:
     + Serialize
     + DeserializeOwned
 {
-    type Packing: PackedField<Scalar = Self>;
+    type Packing: PackedField<Scalar = Self> + Hash;
 
     /// A generator of this field's multiplicative group.
     const GENERATOR: Self;
@@ -925,7 +925,7 @@ pub trait PrimeField32: PrimeField64 {
 ///
 /// It also provides a type which handles packed vectors of extension field elements.
 pub trait ExtensionField<Base: Field>: Field + Algebra<Base> + BasedVectorSpace<Base> {
-    type ExtensionPacking: PackedFieldExtension<Base, Self> + 'static + Copy + Send + Sync;
+    type ExtensionPacking: PackedFieldExtension<Base, Self> + 'static + Copy + Send + Sync + Hash;
 
     /// Determine if the given element lies in the base field.
     #[must_use]
