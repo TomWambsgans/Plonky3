@@ -37,7 +37,7 @@ pub trait AirBuilder: Sized {
     fn assert_zero(&mut self, x: Self::F);
     fn assert_zero_ef(&mut self, x: Self::EF);
 
-    fn eval_custom(&mut self, x: Self::EF);
+    fn eval_virtual_column(&mut self, x: Self::EF);
 
     fn assert_eq(&mut self, x: Self::F, y: Self::F) {
         self.assert_zero(x - y);
