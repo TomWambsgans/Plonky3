@@ -1,35 +1,15 @@
-use core::ops::{Add, Mul, Sub};
-
 use alloc::vec::Vec;
+use core::ops::{Add, Mul, Sub};
 use p3_field::{Algebra, ExtensionField, Field, PrimeCharacteristicRing};
 use p3_matrix::Matrix;
 
-/// The underlying structure of an AIR.
-pub trait BaseAir<F>: Sync {
-    /// The number of columns (a.k.a. registers) in this AIR.
+pub trait Air<AB: AirBuilder> {
     fn width(&self) -> usize;
 
     fn degree(&self) -> usize;
 
-    /// Returns the list of columns such that the row "down" is used within the transition constraints.
     fn columns_with_shift(&self) -> Vec<usize>;
-}
 
-/// An algebraic intermediate representation (AIR) definition.
-///
-/// Contains an evaluation function for computing the constraints of the AIR.
-/// This function can be applied to an evaluation trace in which case each
-/// constraint will compute a particular value or it can be applied symbolically
-/// with each constraint computing a symbolic expression.
-pub trait Air<AB: AirBuilder>: BaseAir<AB::F> {
-    /// Evaluate all AIR constraints using the provided builder.
-    ///
-    /// The builder provides both the trace on which the constraints
-    /// are evaluated on as well as the method of accumulating the
-    /// constraint evaluations.
-    ///
-    /// # Arguments
-    /// - `builder`: Mutable reference to an `AirBuilder` for defining constraints.
     fn eval(&self, builder: &mut AB);
 
     fn eval_custom(&self, inputs: &[AB::Expr]) -> AB::FinalOutput;
