@@ -3,7 +3,7 @@ use core::ops::{Add, Mul, Sub};
 use p3_field::{Algebra, ExtensionField, Field, PrimeCharacteristicRing};
 use p3_matrix::Matrix;
 
-pub trait Air {
+pub trait Air: Send + Sync + 'static {
     fn width(&self) -> usize;
 
     fn degree(&self) -> usize;
