@@ -3,16 +3,16 @@ use core::ops::{Add, Mul, Sub};
 use p3_field::{Algebra, ExtensionField, Field, PrimeCharacteristicRing};
 use p3_matrix::Matrix;
 
-pub trait Air<AB: AirBuilder> {
+pub trait Air {
     fn width(&self) -> usize;
 
     fn degree(&self) -> usize;
 
     fn columns_with_shift(&self) -> Vec<usize>;
 
-    fn eval(&self, builder: &mut AB);
+    fn eval<AB: AirBuilder>(&self, builder: &mut AB);
 
-    fn eval_custom(&self, inputs: &[AB::Expr]) -> AB::FinalOutput;
+    fn eval_custom<AB: AirBuilder>(&self, inputs: &[AB::Expr]) -> AB::FinalOutput;
 }
 
 /// A builder which contains both a trace on which AIR constraints can be evaluated as well as a method of accumulating the AIR constraint evaluations.
@@ -27,7 +27,7 @@ pub trait AirBuilder: Sized {
     type F: PrimeCharacteristicRing + Sync;
 
     /// Serves as the output type for an AIR constraint evaluation.
-    type Expr: Algebra<Self::F> + Algebra<Self::Var>;
+    type Expr: Algebra<Self::F> + Algebra<Self::Var> + 'static;
 
     /// The type of the variable appearing in the trace matrix.
     ///
@@ -44,10 +44,11 @@ pub trait AirBuilder: Sized {
         + Sub<Self::Expr, Output = Self::Expr>
         + Mul<Self::F, Output = Self::Expr>
         + Mul<Self::Var, Output = Self::Expr>
-        + Mul<Self::Expr, Output = Self::Expr>;
+        + Mul<Self::Expr, Output = Self::Expr>
+        + 'static;
 
     // the final type, after batching with the random challenges (extension field, in practice)
-    type FinalOutput;
+    type FinalOutput: 'static;
 
     /// Return the matrix representing the main (primary) trace registers.
     fn main(&self) -> &[Self::Var];

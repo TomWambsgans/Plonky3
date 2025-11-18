@@ -14,11 +14,11 @@ use crate::symbolic_variable::SymbolicVariable;
 pub fn get_log_quotient_degree<F, A>(air: &A, is_zk: usize) -> usize
 where
     F: Field,
-    A: Air<SymbolicAirBuilder<F>>,
+    A: Air,
 {
     assert!(is_zk <= 1, "is_zk must be either 0 or 1");
     // We pad to at least degree 2, since a quotient argument doesn't make sense with smaller degrees.
-    let constraint_degree = (get_max_constraint_degree(air) + is_zk).max(2);
+    let constraint_degree = (get_max_constraint_degree::<A, F>(air) + is_zk).max(2);
 
     // The quotient's actual degree is approximately (max_constraint_degree - 1) n,
     // where subtracting 1 comes from division by the vanishing polynomial.
@@ -27,14 +27,14 @@ where
 }
 
 #[instrument(name = "infer constraint degree", skip_all, level = "debug")]
-pub fn get_max_constraint_degree<F, A>(air: &A) -> usize
+pub fn get_max_constraint_degree<A, F>(air: &A) -> usize
 where
     F: Field,
-    A: Air<SymbolicAirBuilder<F>>,
+    A: Air,
 {
     get_symbolic_constraints(air)
         .iter()
-        .map(|c| c.degree_multiple())
+        .map(|c: &SymbolicExpression<F>| c.degree_multiple())
         .max()
         .unwrap_or(0)
 }
@@ -43,7 +43,7 @@ where
 pub fn get_symbolic_constraints<F, A>(air: &A) -> Vec<SymbolicExpression<F>>
 where
     F: Field,
-    A: Air<SymbolicAirBuilder<F>>,
+    A: Air,
 {
     let mut builder = SymbolicAirBuilder::new(air.width(), air.columns_with_shift().len());
     air.eval(&mut builder);
