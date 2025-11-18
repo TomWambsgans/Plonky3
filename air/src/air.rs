@@ -18,8 +18,6 @@ pub trait Air: Send + Sync + 'static {
     fn down_column_indexes() -> Vec<usize>;
 
     fn eval<AB: AirBuilder>(&self, builder: &mut AB);
-
-    fn eval_custom<AB: AirBuilder>(&self, inputs: &[AB::F]) -> AB::EF;
 }
 
 pub trait AirBuilder: Sized {
@@ -40,7 +38,6 @@ pub trait AirBuilder: Sized {
     fn assert_zero_ef(&mut self, x: Self::EF);
 
     fn eval_custom(&mut self, x: Self::EF);
-
 
     fn assert_eq(&mut self, x: Self::F, y: Self::F) {
         self.assert_zero(x - y);
