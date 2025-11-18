@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use p3_field::{Algebra, PrimeCharacteristicRing};
+use p3_field::{PrimeCharacteristicRing};
 
 pub trait Air: Send + Sync + 'static {
     fn width(&self) -> usize;
@@ -15,9 +15,7 @@ pub trait Air: Send + Sync + 'static {
 
 
 pub trait AirBuilder: Sized {
-    type F: PrimeCharacteristicRing + Sync;
-
-    type Expr: Algebra<Self::F> + 'static;
+    type Expr: PrimeCharacteristicRing + 'static;
 
     // the final type, after batching with the random challenges (extension field, in practice)
     type FinalOutput: 'static;
