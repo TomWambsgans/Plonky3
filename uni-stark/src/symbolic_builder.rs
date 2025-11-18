@@ -53,7 +53,7 @@ where
 /// An `AirBuilder` for evaluating constraints symbolically, and recording them for later use.
 #[derive(Debug)]
 pub struct SymbolicAirBuilder<F: Field> {
-    main: Vec<SymbolicVariable<F>>,
+    main: Vec<SymbolicExpression<F>>,
     constraints: Vec<SymbolicExpression<F>>,
 }
 
@@ -67,7 +67,12 @@ impl<F: Field> SymbolicAirBuilder<F> {
                 } else {
                     n_columns_with_shift
                 };
-                (0..width).map(move |index| SymbolicVariable::new(Entry::Main { offset }, index))
+                (0..width).map(move |index| {
+                    SymbolicExpression::Variable(SymbolicVariable::new(
+                        Entry::Main { offset },
+                        index,
+                    ))
+                })
             })
             .collect();
         Self {
@@ -84,10 +89,9 @@ impl<F: Field> SymbolicAirBuilder<F> {
 impl<F: Field> AirBuilder for SymbolicAirBuilder<F> {
     type F = F;
     type Expr = SymbolicExpression<F>;
-    type Var = SymbolicVariable<F>;
     type FinalOutput = ();
 
-    fn main(&self) -> &[Self::Var] {
+    fn main(&self) -> &[Self::Expr] {
         &self.main
     }
 
