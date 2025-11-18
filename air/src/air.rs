@@ -1,65 +1,60 @@
+use core::ops::{Add, Mul, Sub};
+
 use alloc::vec::Vec;
-use p3_field::{PrimeCharacteristicRing};
+use p3_field::PrimeCharacteristicRing;
 
 pub trait Air: Send + Sync + 'static {
-    fn width(&self) -> usize;
+    fn degree() -> usize;
 
-    fn degree(&self) -> usize;
+    fn n_columns_f() -> usize;
+    fn n_columns_ef() -> usize;
 
-    fn columns_with_shift(&self) -> Vec<usize>;
+    fn n_columns() -> usize {
+        Self::n_columns_f() + Self::n_columns_ef()
+    }
+
+    fn n_constraints() -> usize;
+
+    fn down_column_indexes() -> Vec<usize>;
 
     fn eval<AB: AirBuilder>(&self, builder: &mut AB);
 
-    fn eval_custom<AB: AirBuilder>(&self, inputs: &[AB::Expr]) -> AB::FinalOutput;
+    fn eval_custom<AB: AirBuilder>(&self, inputs: &[AB::F]) -> AB::EF;
 }
 
-
 pub trait AirBuilder: Sized {
-    type Expr: PrimeCharacteristicRing + 'static;
+    type F: PrimeCharacteristicRing + 'static;
+    type EF: PrimeCharacteristicRing
+        + 'static
+        + Add<Self::F, Output = Self::EF>
+        + Mul<Self::F, Output = Self::EF>
+        + Sub<Self::F, Output = Self::EF>
+        + From<Self::F>;
 
-    // the final type, after batching with the random challenges (extension field, in practice)
-    type FinalOutput: 'static;
+    fn up_f(&self) -> &[Self::F];
+    fn down_f(&self) -> &[Self::F];
+    fn up_ef(&self) -> &[Self::EF];
+    fn down_ef(&self) -> &[Self::EF];
 
-    fn main(&self) -> &[Self::Expr];
+    fn assert_zero(&mut self, x: Self::F);
+    fn assert_zero_ef(&mut self, x: Self::EF);
 
-    /// Assert that the given element is zero.
-    ///
-    /// Where possible, batching multiple assert_zero calls
-    /// into a single assert_zeros call will improve performance.
-    fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I);
+    fn eval_custom(&mut self, x: Self::EF);
 
-    /// Assert that every element of a given array is 0.
-    ///
-    /// This should be preferred over calling `assert_zero` multiple times.
-    fn assert_zeros<const N: usize, I: Into<Self::Expr>>(&mut self, array: [I; N]) {
-        for elem in array {
-            self.assert_zero(elem);
-        }
+
+    fn assert_eq(&mut self, x: Self::F, y: Self::F) {
+        self.assert_zero(x - y);
     }
 
-    /// Assert that a given array consists of only boolean values.
-    fn assert_bools<const N: usize, I: Into<Self::Expr>>(&mut self, array: [I; N]) {
-        let zero_array = array.map(|x| x.into().bool_check());
-        self.assert_zeros(zero_array);
+    fn assert_bool(&mut self, x: Self::F) {
+        self.assert_zero(x.bool_check());
     }
 
-    /// Assert that `x` element is equal to `1`.
-    fn assert_one<I: Into<Self::Expr>>(&mut self, x: I) {
-        self.assert_zero(x.into() - Self::Expr::ONE);
+    fn assert_eq_ef(&mut self, x: Self::EF, y: Self::EF) {
+        self.assert_zero_ef(x - y);
     }
 
-    /// Assert that the given elements are equal.
-    fn assert_eq<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(&mut self, x: I1, y: I2) {
-        self.assert_zero(x.into() - y.into());
+    fn assert_bool_ef(&mut self, x: Self::EF) {
+        self.assert_zero_ef(x.bool_check());
     }
-
-    /// Assert that `x` is a boolean, i.e. either `0` or `1`.
-    ///
-    /// Where possible, batching multiple assert_bool calls
-    /// into a single assert_bools call will improve performance.
-    fn assert_bool<I: Into<Self::Expr>>(&mut self, x: I) {
-        self.assert_zero(x.into().bool_check());
-    }
-
-    fn add_custom(&mut self, value: Self::FinalOutput);
 }
