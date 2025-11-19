@@ -4,6 +4,8 @@ use alloc::vec::Vec;
 use p3_field::PrimeCharacteristicRing;
 
 pub trait Air: Send + Sync + 'static {
+    type ExtraData: Send + Sync + 'static;
+
     fn degree() -> usize;
 
     fn n_columns_f() -> usize;
@@ -17,7 +19,7 @@ pub trait Air: Send + Sync + 'static {
 
     fn down_column_indexes() -> Vec<usize>;
 
-    fn eval<AB: AirBuilder>(&self, builder: &mut AB);
+    fn eval<AB: AirBuilder>(&self, builder: &mut AB, extra_data: &Self::ExtraData);
 }
 
 pub trait AirBuilder: Sized {
