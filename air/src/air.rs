@@ -6,18 +6,18 @@ use p3_field::PrimeCharacteristicRing;
 pub trait Air: Send + Sync + 'static {
     type ExtraData: Send + Sync + 'static;
 
-    fn degree() -> usize;
+    fn degree(&self) -> usize;
 
-    fn n_columns_f() -> usize;
-    fn n_columns_ef() -> usize;
+    fn n_columns_f(&self) -> usize;
+    fn n_columns_ef(&self) -> usize;
 
-    fn n_columns() -> usize {
-        Self::n_columns_f() + Self::n_columns_ef()
+    fn n_columns(&self) -> usize {
+        self.n_columns_f() + self.n_columns_ef()
     }
 
-    fn n_constraints() -> usize;
+    fn n_constraints(&self) -> usize;
 
-    fn down_column_indexes() -> Vec<usize>;
+    fn down_column_indexes(&self) -> Vec<usize>;
 
     fn eval<AB: AirBuilder>(&self, builder: &mut AB, extra_data: &Self::ExtraData);
 }
