@@ -8,16 +8,17 @@ pub trait Air: Send + Sync + 'static {
 
     fn degree(&self) -> usize;
 
-    fn n_columns_f(&self) -> usize;
-    fn n_columns_ef(&self) -> usize;
+    fn n_columns_f_air(&self) -> usize;
+    fn n_columns_ef_air(&self) -> usize;
 
-    fn n_columns(&self) -> usize {
-        self.n_columns_f() + self.n_columns_ef()
+    fn n_columns_air(&self) -> usize {
+        self.n_columns_f_air() + self.n_columns_ef_air()
     }
 
     fn n_constraints(&self) -> usize;
 
-    fn down_column_indexes(&self) -> Vec<usize>;
+    fn down_column_indexes_f(&self) -> Vec<usize>;
+    fn down_column_indexes_ef(&self) -> Vec<usize>;
 
     fn eval<AB: AirBuilder>(&self, builder: &mut AB, extra_data: &Self::ExtraData);
 }
