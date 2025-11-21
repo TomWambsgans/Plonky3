@@ -21,6 +21,10 @@ pub trait Air: Send + Sync + 'static {
     fn down_column_indexes_ef(&self) -> Vec<usize>;
 
     fn eval<AB: AirBuilder>(&self, builder: &mut AB, extra_data: &Self::ExtraData);
+
+    fn total_n_down_columns_air(&self) -> usize {
+        self.down_column_indexes_f().len() + self.down_column_indexes_ef().len()
+    }
 }
 
 pub trait AirBuilder: Sized {
