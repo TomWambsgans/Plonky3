@@ -5,6 +5,7 @@ use p3_field::PrimeCharacteristicRing;
 
 pub trait Air: Send + Sync + 'static {
     type ExtraData: Send + Sync + 'static;
+    const N_STEPS: usize = 1;
 
     fn degrees(&self) -> Vec<usize>;
 
@@ -20,7 +21,7 @@ pub trait Air: Send + Sync + 'static {
     fn down_column_indexes_f(&self) -> Vec<usize>;
     fn down_column_indexes_ef(&self) -> Vec<usize>;
 
-    fn eval<AB: AirBuilder>(&self, builder: &mut AB, extra_data: &Self::ExtraData, step: usize);
+    fn eval<AB: AirBuilder, const STEP: usize>(&self, builder: &mut AB, extra_data: &Self::ExtraData);
 
     #[inline(always)]
     fn n_constraints_before_step(&self, step: usize) -> usize {
