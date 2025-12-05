@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "air",
     "baby-bear",
     "blake3",
     "bn254",
@@ -65,7 +64,6 @@ tracing-subscriber = { version = "0.3.17", default-features = false, features = 
 transpose = "0.2.3"
 
 # Local dependencies
-p3-air = { path = "air", version = "0.3.0" }
 p3-baby-bear = { path = "baby-bear", version = "0.3.0" }
 p3-blake3 = { path = "blake3", version = "0.3.0" }
 p3-bn254 = { path = "bn254", version = "0.3.0" }
