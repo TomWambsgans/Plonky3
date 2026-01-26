@@ -28,7 +28,7 @@ use rand::distr::{Distribution, StandardUniform};
 
 use crate::{
     BinomialExtensionData, FieldParameters, MontyField31, PackedMontyParameters,
-    QuinticExtensionData, RelativelyPrimePower, halve_avx512,
+    RelativelyPrimePower, halve_avx512,
 };
 
 const WIDTH: usize = 16;
@@ -67,7 +67,7 @@ impl<PMP: PackedMontyParameters> PackedMontyField31AVX512<PMP> {
     ///
     /// SAFETY: The caller must ensure that each element of `vector` represents a valid
     /// `MontyField31`. In particular, each element of vector must be in `0..=P`.
-    pub(crate) unsafe fn from_vector(vector: __m512i) -> Self {
+    pub unsafe fn from_vector(vector: __m512i) -> Self {
         unsafe {
             // Safety: It is up to the user to ensure that elements of `vector` represent valid
             // `MontyField31` values. We must only reason about memory representations. `__m512i` can be
@@ -88,7 +88,7 @@ impl<PMP: PackedMontyParameters> PackedMontyField31AVX512<PMP> {
 
     /// Copy values from `arr` into the packed vector padding by zeros if necessary.
     #[inline]
-    fn from_monty_array<const N: usize>(arr: [MontyField31<PMP>; N]) -> Self
+    pub fn from_monty_array<const N: usize>(arr: [MontyField31<PMP>; N]) -> Self
     where
         PMP: FieldParameters,
     {
@@ -924,7 +924,8 @@ impl<PMP: PackedMontyParameters> IntoM512<PMP> for MontyField31<PMP> {
 /// If the inputs are not in canonical form, the result is undefined.
 #[inline]
 #[must_use]
-fn dot_product_2<PMP: PackedMontyParameters, LHS: IntoM512<PMP>, RHS: IntoM512<PMP>>(
+#[allow(private_bounds)]
+pub fn dot_product_2<PMP: PackedMontyParameters, LHS: IntoM512<PMP>, RHS: IntoM512<PMP>>(
     lhs: [LHS; 2],
     rhs: [RHS; 2],
 ) -> __m512i {

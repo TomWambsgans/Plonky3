@@ -94,7 +94,7 @@ pub(crate) fn quintic_mul_packed(a: &[KoalaBear; 5], b: &[KoalaBear; 5], res: &m
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 /// Multiplication in a quintic binomial extension field.
 #[inline]
-pub(crate) fn quintic_mul_packed<FP>(
+pub(crate) fn quintic_mul_packed(
     a: &[KoalaBear; 5],
     b: &[KoalaBear; 5],
     res: &mut [KoalaBear; 5],
