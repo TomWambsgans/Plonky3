@@ -42,7 +42,7 @@ where
         'outer: loop {
             for i in 0..RATE {
                 if let Some(x) = input.next() {
-                    state[i] = x;
+                    state[i + (WIDTH - RATE)] = x;
                 } else {
                     if i != 0 {
                         self.permutation.permute_mut(&mut state);
@@ -53,7 +53,7 @@ where
             self.permutation.permute_mut(&mut state);
         }
 
-        state[state.len() - OUT..].try_into().unwrap()
+        state[..OUT].try_into().unwrap()
     }
 }
 
