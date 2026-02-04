@@ -105,9 +105,17 @@ where
     InternalPerm: InternalLayer<A, WIDTH, D>,
 {
     fn permute_mut(&self, state: &mut [A; WIDTH]) {
+        let initial_state = state.clone();
         self.external_layer.permute_state_initial(state);
         self.internal_layer.permute_state(state);
         self.external_layer.permute_state_terminal(state);
+        // Warning: this is not really poseidon2 permutation, this is poseidon2 in "compression" mode
+        state
+            .iter_mut()
+            .zip(initial_state.into_iter())
+            .for_each(|(s, i)| {
+                *s = s.clone() + i;
+            });
     }
 }
 
