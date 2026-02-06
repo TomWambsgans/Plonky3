@@ -27,7 +27,7 @@ impl<T, P, const WIDTH: usize, const RATE: usize, const OUT: usize> Cryptographi
     for PaddingFreeSponge<P, WIDTH, RATE, OUT>
 where
     T: Default + Copy,
-    P: CryptographicPermutation<[T; WIDTH]>,
+    P: CryptographicPermutation<[T; WIDTH]>, // TODO: Naming -> In leanMultisig it's actually a compression, so no need for the initial zeroed state (precisely: we use a T-Sponge)
 {
     fn hash_iter<I>(&self, input: I) -> [T; OUT]
     where
@@ -37,8 +37,11 @@ where
         let mut state = [T::default(); WIDTH];
         let mut input = input.into_iter();
 
-        // Itertools' chunks() is more convenient, but seems to add more overhead,
-        // hence the more manual loop.
+        for i in 0..WIDTH {
+            state[i] = input.next().unwrap_or_default();
+        }
+        self.permutation.permute_mut(&mut state); // It's actually a compression in leanMultisig
+
         'outer: loop {
             for i in 0..RATE {
                 if let Some(x) = input.next() {
