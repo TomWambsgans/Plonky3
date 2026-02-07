@@ -7,10 +7,12 @@ mod extension_test;
 mod koala_bear;
 mod poseidon2;
 mod quintic_extension;
+mod sextic_extension;
 
 pub use koala_bear::*;
 pub use poseidon2::*;
 pub use quintic_extension::*;
+pub use sextic_extension::*;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 mod aarch64_neon;

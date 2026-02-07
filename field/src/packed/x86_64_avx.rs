@@ -229,6 +229,19 @@ pub fn packed_mod_add<const WIDTH: usize>(
 
             res[..4].copy_from_slice(&out[..4]);
         }
+        6 => {
+            // Fit first 4 into a m128i vector, last 2 done scalar.
+            let out: [u32; 4] = unsafe {
+                let a: __m128i = transmute([a[0], a[1], a[2], a[3]]);
+                let b: __m128i = transmute([b[0], b[1], b[2], b[3]]);
+                let p: __m128i = x86_64::_mm_set1_epi32(p as i32);
+                transmute(mm128_mod_add(a, b, p))
+            };
+            res[4] = scalar_add(a[4], b[4]);
+            res[5] = scalar_add(a[5], b[5]);
+
+            res[..4].copy_from_slice(&out[..4]);
+        }
         8 => {
             // This perfectly fits into a single m256i vector.
             let out: [u32; 8] = unsafe {
@@ -292,6 +305,19 @@ pub fn packed_mod_sub<const WIDTH: usize>(
                 transmute(mm128_mod_sub(a, b, p))
             };
             res[4] = scalar_sub(a[4], b[4]);
+
+            res[..4].copy_from_slice(&out[..4]);
+        }
+        6 => {
+            // Fit first 4 into a m128i vector, last 2 done scalar.
+            let out: [u32; 4] = unsafe {
+                let a: __m128i = transmute([a[0], a[1], a[2], a[3]]);
+                let b: __m128i = transmute([b[0], b[1], b[2], b[3]]);
+                let p: __m128i = x86_64::_mm_set1_epi32(p as i32);
+                transmute(mm128_mod_sub(a, b, p))
+            };
+            res[4] = scalar_sub(a[4], b[4]);
+            res[5] = scalar_sub(a[5], b[5]);
 
             res[..4].copy_from_slice(&out[..4]);
         }

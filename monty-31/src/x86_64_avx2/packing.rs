@@ -1253,6 +1253,14 @@ pub fn base_mul_packed<FP, const WIDTH: usize>(
 
             res[..4].copy_from_slice(&out.0[..4]);
         }
+        6 => {
+            let zero = MontyField31::<FP>::ZERO;
+            let lhs = PackedMontyField31AVX2([a[0], a[1], a[2], a[3], a[4], a[5], zero, zero]);
+
+            let out = lhs * b;
+
+            res.copy_from_slice(&out.0[..6]);
+        }
         8 => {
             let lhs = PackedMontyField31AVX2([a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]]);
 

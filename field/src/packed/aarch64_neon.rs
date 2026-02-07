@@ -126,6 +126,20 @@ pub fn packed_mod_add<const WIDTH: usize>(
 
             res[..4].copy_from_slice(&out);
         }
+        6 => {
+            // Fit first 4 into a uint32x4_t, last 2 done scalar.
+            let out: [u32; 4] = unsafe {
+                let a = array_to_uint32x4([a[0], a[1], a[2], a[3]]);
+                let b = array_to_uint32x4([b[0], b[1], b[2], b[3]]);
+                let p: uint32x4_t = aarch64::vdupq_n_u32(p);
+                uint32x4_to_array(uint32x4_mod_add(a, b, p))
+            };
+
+            res[4] = scalar_add(a[4], b[4]);
+            res[5] = scalar_add(a[5], b[5]);
+
+            res[..4].copy_from_slice(&out);
+        }
         8 => {
             // This perfectly fits into two uint32x4_t elements.
             let (out_lo, out_hi): ([u32; 4], [u32; 4]) = unsafe {
@@ -192,6 +206,20 @@ pub fn packed_mod_sub<const WIDTH: usize>(
             };
 
             res[4] = scalar_sub(a[4], b[4]);
+
+            res[..4].copy_from_slice(&out);
+        }
+        6 => {
+            // Fit first 4 into a uint32x4_t, last 2 done scalar.
+            let out: [u32; 4] = unsafe {
+                let a = array_to_uint32x4([a[0], a[1], a[2], a[3]]);
+                let b = array_to_uint32x4([b[0], b[1], b[2], b[3]]);
+                let p: uint32x4_t = aarch64::vdupq_n_u32(p);
+                uint32x4_to_array(uint32x4_mod_sub(a, b, p))
+            };
+
+            res[4] = scalar_sub(a[4], b[4]);
+            res[5] = scalar_sub(a[5], b[5]);
 
             res[..4].copy_from_slice(&out);
         }

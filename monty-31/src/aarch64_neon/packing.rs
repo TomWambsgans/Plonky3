@@ -1036,6 +1036,15 @@ pub fn base_mul_packed<FP, const WIDTH: usize>(
 
             res[..4].copy_from_slice(&out.0[..4]);
         }
+        6 => {
+            let lhs = PackedMontyField31Neon([a[0], a[1], a[2], a[3]]);
+
+            let out = lhs * b;
+            res[4] = a[4] * b;
+            res[5] = a[5] * b;
+
+            res[..4].copy_from_slice(&out.0[..4]);
+        }
         8 => {
             let lhs_lo = PackedMontyField31Neon([a[0], a[1], a[2], a[3]]);
             let lhs_hi = PackedMontyField31Neon([a[4], a[5], a[6], a[7]]);

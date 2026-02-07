@@ -1570,6 +1570,17 @@ pub fn base_mul_packed<FP, const WIDTH: usize>(
 
             res.copy_from_slice(&out[..5]);
         }
+        6 => {
+            let out: [MontyField31<FP>; 8] = unsafe {
+                let lhs: __m256i = transmute([
+                    a[0].value, a[1].value, a[2].value, a[3].value, a[4].value, a[5].value, 0, 0,
+                ]);
+                let prod = mul_256::<FP>(lhs, b.value as i32);
+                transmute(prod)
+            };
+
+            res.copy_from_slice(&out[..6]);
+        }
         8 => {
             // This could likely be sped up by a completely custom implementation of mul.
             let out: [MontyField31<FP>; 8] = unsafe {
