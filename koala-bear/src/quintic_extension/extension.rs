@@ -624,48 +624,44 @@ where
     F: Field,
     R: Algebra<F>,
 {
-    let two_a0 = a[0].double();
-    let two_a1 = a[1].double();
-    let two_a2 = a[2].double();
-    let two_a3 = a[3].double();
+    // Precompute doubled coefficients for cross terms
+    let a0_2 = a[0].double();
+    let a1_2 = a[1].double();
+    let a2_2 = a[2].double();
+    let a3_2 = a[3].double();
 
-    let two_a1_a4 = two_a1.clone() * a[4].clone();
-    let two_a2_a3 = two_a2.clone() * a[3].clone();
-    let two_a2_a4 = two_a2.clone() * a[4].clone();
-    let two_a3_a4 = two_a3.clone() * a[4].clone();
+    // Compute convolution coefficients using dot products
+    // c0 = a0^2
+    let c0 = a[0].square();
+    // c1 = 2*a0*a1
+    let c1 = a0_2.clone() * a[1].clone();
+    // c2 = 2*a0*a2 + a1^2
+    let c2 = R::dot_product::<2>(&[a0_2.clone(), a[1].clone()], &[a[2].clone(), a[1].clone()]);
+    // c3 = 2*a0*a3 + 2*a1*a2
+    let c3 = R::dot_product::<2>(&[a0_2.clone(), a1_2.clone()], &[a[3].clone(), a[2].clone()]);
+    // c4 = 2*a0*a4 + 2*a1*a3 + a2^2
+    let c4 = R::dot_product::<3>(
+        &[a0_2, a1_2.clone(), a[2].clone()],
+        &[a[4].clone(), a[3].clone(), a[2].clone()],
+    );
+    // c5 = 2*a1*a4 + 2*a2*a3
+    let c5 = R::dot_product::<2>(&[a1_2, a2_2.clone()], &[a[4].clone(), a[3].clone()]);
+    // c6 = 2*a2*a4 + a3^2
+    let c6 = R::dot_product::<2>(&[a2_2, a[3].clone()], &[a[4].clone(), a[3].clone()]);
+    // c7 = 2*a3*a4
+    let c7 = a3_2 * a[4].clone();
+    // c8 = a4^2
+    let c8 = a[4].square();
 
-    let a3_square = a[3].square();
-    let a4_square = a[4].square();
+    // Pre-compute c5 - c8 to save an operation
+    let c5_minus_c8 = c5 - c8.clone();
 
-    // Constant term = a0^2 + 2*a1*a4 + 2*a2*a3 - a4^2
-    res[0] = R::dot_product(
-        &[a[0].clone(), two_a1.clone()],
-        &[a[0].clone(), a[4].clone()],
-    ) + two_a2_a3.clone()
-        - a4_square.clone();
-
-    // Linear term = 2*a0*a1 + a3^2 + 2*a2*a4
-    res[1] = two_a0.clone() * a[1].clone() + a3_square.clone() + two_a2_a4.clone();
-
-    // Square term = a1^2 + 2*a0*a2 - 2*a1*a4 - 2*a2*a3 + 2*a3*a4 + a4^2
-    res[2] = a[1].square() + two_a0.clone() * a[2].clone() - two_a1_a4.clone() - two_a2_a3.clone()
-        + two_a3_a4.clone()
-        + a4_square.clone();
-
-    // Cubic term = 2*a0*a3 + 2*a1*a2 - a3^2 - 2*a2*a4 + a4^2
-    res[3] = R::dot_product(
-        &[two_a0.clone(), two_a1.clone()],
-        &[a[3].clone(), a[2].clone()],
-    ) - a3_square.clone()
-        - two_a2_a4.clone()
-        + a4_square.clone();
-
-    // Quartic term = a2^2 + 2*a0*a4 + 2*a1*a3 - 2*a3*a4
-    res[4] = R::dot_product(
-        &[two_a0.clone(), two_a1.clone()],
-        &[a[4].clone(), a[3].clone()],
-    ) + a[2].square()
-        - two_a3_a4.clone();
+    // Apply reduction: X^5 = 1 - X^2, X^6 = X - X^3, X^7 = X^2 - X^4, X^8 = X^3 + X^2 - 1
+    res[0] = c0 + c5_minus_c8.clone();
+    res[1] = c1 + c6.clone();
+    res[2] = c2 - c5_minus_c8 + c7.clone();
+    res[3] = c3 - c6 + c8;
+    res[4] = c4 - c7;
 }
 
 #[inline]
