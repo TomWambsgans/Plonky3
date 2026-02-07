@@ -124,7 +124,7 @@ pub(crate) fn quintic_mul_packed(
     // TODO: This can probably be improved by using a custom function.
     let lhs = [
         PackedMontyField31AVX512([
-            a[0], a[2], a[0], a[2], a[0], a[2], a[0], a[2], a[2], a[2], a[4], a[4], a[4], a[4],
+            a[0], a[2], a[0], a[2], a[0], a[2], a[0], a[2], a[0], a[2], a[4], a[4], a[4], a[4],
             a[4], zero,
         ]),
         PackedMontyField31AVX512([
