@@ -539,41 +539,76 @@ impl<F: TwoAdicField + SexticExtendable> TwoAdicField for SexticExtensionField<F
 
 // ===== Core arithmetic functions =====
 
-/// Schoolbook multiplication in F_p[w]/(w^6 - 2w^3 - 2).
+/// Dot-product multiplication in F_p[w]/(w^6 - 2w^3 - 2).
 ///
-/// Computes the product of two degree-5 polynomials, then reduces
-/// using the relation w^6 = 2w^3 + 2.
+/// Expresses each output coefficient as an independent dot product of `a` with
+/// a precomputed linear combination of `b` values. This gives 6 fully independent
+/// multiply-accumulate chains, maximizing instruction-level parallelism.
+///
+/// Uses 36 base field multiplications but with near-perfect ILP, which outperforms
+/// the 18-mul Karatsuba on throughput-bound workloads.
+///
+/// Derivation: schoolbook product d[k] = sum_{i+j=k} a[i]*b[j] gives d[0..10],
+/// then iterative reduction w^6 = 2w^3 + 2 yields:
+///   res[0] = d[0] + 2*d[6] + 4*d[9]
+///   res[1] = d[1] + 2*d[7] + 4*d[10]
+///   res[2] = d[2] + 2*d[8]
+///   res[3] = d[3] + 2*d[6] + 6*d[9]
+///   res[4] = d[4] + 2*d[7] + 6*d[10]
+///   res[5] = d[5] + 2*d[8]
 pub(crate) fn sextic_mul<F, R, R2>(a: &[R; 6], b: &[R2; 6], res: &mut [R; 6])
 where
     F: Field,
     R: Algebra<F> + Algebra<R2>,
     R2: Algebra<F>,
 {
-    // Convert b to R type for computation
     let b_r: [R; 6] = array::from_fn(|i| b[i].clone().into());
 
-    // Compute the 11 unreduced coefficients of the product polynomial (degree 0..10).
-    // c[k] = sum_{i+j=k} a[i] * b[j]
-    let mut c: [R; 11] = array::from_fn(|_| R::ZERO);
-    for i in 0..6 {
-        for j in 0..6 {
-            c[i + j] = c[i + j].clone() + a[i].clone() * b_r[j].clone();
-        }
-    }
+    // Precompute b-value combinations (5 doubles + 5 adds).
+    let db5 = b_r[5].double();
+    let db4 = b_r[4].double();
+    let db3 = b_r[3].double();
 
-    // Reduce using w^6 = 2w^3 + 2.
-    // For k >= 6: w^k = 2*w^{k-3} + 2*w^{k-6}
-    // Process from highest to lowest so each reduction only feeds into lower indices.
-    for k in (6..=10).rev() {
-        let two_ck = c[k].double();
-        c[k - 3] = c[k - 3].clone() + two_ck.clone();
-        c[k - 6] = c[k - 6].clone() + two_ck;
-    }
+    let b2_2b5 = b_r[2].clone() + db5.clone(); // b2 + 2*b5
+    let b1_2b4 = b_r[1].clone() + db4.clone(); // b1 + 2*b4
+    let b0_2b3 = b_r[0].clone() + db3.clone(); // b0 + 2*b3
 
-    // Copy the reduced coefficients to the result.
-    for i in 0..6 {
-        res[i] = c[i].clone();
-    }
+    let db2_4b5 = b2_2b5.double(); // 2*b2 + 4*b5
+    let db1_4b4 = b1_2b4.double(); // 2*b1 + 4*b4
+
+    let db2_6b5 = db2_4b5.clone() + db5.clone(); // 2*b2 + 6*b5
+    let db1_6b4 = db1_4b4.clone() + db4.clone(); // 2*b1 + 6*b4
+
+    // 6 independent dot products (36 base muls, full ILP).
+    res[0] = R::dot_product::<6>(
+        a,
+        &[b_r[0].clone(), db5.clone(), db4.clone(), db3.clone(), db2_4b5.clone(), db1_4b4],
+    );
+
+    res[1] = R::dot_product::<6>(
+        a,
+        &[b_r[1].clone(), b_r[0].clone(), db5.clone(), db4.clone(), db3.clone(), db2_4b5],
+    );
+
+    res[2] = R::dot_product::<6>(
+        a,
+        &[b_r[2].clone(), b_r[1].clone(), b_r[0].clone(), db5, db4, db3],
+    );
+
+    res[3] = R::dot_product::<6>(
+        a,
+        &[b_r[3].clone(), b2_2b5.clone(), b1_2b4.clone(), b0_2b3.clone(), db2_6b5.clone(), db1_6b4],
+    );
+
+    res[4] = R::dot_product::<6>(
+        a,
+        &[b_r[4].clone(), b_r[3].clone(), b2_2b5.clone(), b1_2b4.clone(), b0_2b3.clone(), db2_6b5],
+    );
+
+    res[5] = R::dot_product::<6>(
+        a,
+        &[b_r[5].clone(), b_r[4].clone(), b_r[3].clone(), b2_2b5, b1_2b4, b0_2b3],
+    );
 }
 
 /// Schoolbook squaring in F_p[w]/(w^6 - 2w^3 - 2).

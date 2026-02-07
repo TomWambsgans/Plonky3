@@ -4,11 +4,12 @@ use p3_field_testing::bench_func::{
     benchmark_add_latency, benchmark_add_slices, benchmark_add_throughput, benchmark_inv,
     benchmark_mul_latency, benchmark_mul_throughput, benchmark_square,
 };
-use p3_koala_bear::{KoalaBear, QuinticExtensionFieldKB};
+use p3_koala_bear::{KoalaBear, QuinticExtensionFieldKB, SexticExtensionFieldKB};
 
 type EF4 = BinomialExtensionField<KoalaBear, 4>;
 type EF8 = BinomialExtensionField<KoalaBear, 8>;
 type EF5 = QuinticExtensionFieldKB;
+type EF6 = SexticExtensionFieldKB;
 
 // Note that each round of throughput has 10 operations
 // So we should have 10 * more repetitions for latency tests.
@@ -51,10 +52,23 @@ fn bench_quintic_extension(c: &mut Criterion) {
     benchmark_mul_latency::<EF5, L_REPS>(c, name);
 }
 
+fn bench_sextic_extension(c: &mut Criterion) {
+    let name = "SexticExtensionField<KoalaBear>";
+    benchmark_add_throughput::<EF6, REPS>(c, name);
+    benchmark_add_latency::<EF6, L_REPS>(c, name);
+    benchmark_add_slices::<EF6, 8>(c, name);
+    benchmark_add_slices::<EF6, 1000>(c, name);
+    benchmark_square::<EF6>(c, name);
+    benchmark_inv::<EF6>(c, name);
+    benchmark_mul_throughput::<EF6, REPS>(c, name);
+    benchmark_mul_latency::<EF6, L_REPS>(c, name);
+}
+
 criterion_group!(
     bench_koalabear_ef,
     bench_quartic_extension,
     bench_octic_extension,
-    bench_quintic_extension
+    bench_quintic_extension,
+    bench_sextic_extension
 );
 criterion_main!(bench_koalabear_ef);
