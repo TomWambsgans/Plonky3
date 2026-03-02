@@ -5,6 +5,8 @@ extern crate alloc;
 
 #[cfg(test)]
 mod extension_test;
+#[cfg(test)]
+mod poseidon1_vs_poseidon2_test;
 mod koala_bear;
 mod poseidon2;
 
