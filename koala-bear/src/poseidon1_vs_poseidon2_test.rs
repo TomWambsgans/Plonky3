@@ -40,8 +40,10 @@ fn make_poseidon1() -> Poseidon1KoalaBear16 {
     )
 }
 
+/*
+RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-koala-bear --lib -- poseidon1_vs_poseidon2_test::bench_koalabear_poseidon1_vs_poseidon2 --exact --nocapture
+*/
 #[test]
-#[ignore]
 fn bench_koalabear_poseidon1_vs_poseidon2() {
     let n = 1 << 22;
     let poseidon1 = make_poseidon1();
