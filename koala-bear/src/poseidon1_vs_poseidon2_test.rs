@@ -49,32 +49,32 @@ fn bench_koalabear_poseidon1_vs_poseidon2() {
     let poseidon1 = make_poseidon1();
     let poseidon2 = default_koalabear_poseidon2_16();
 
-    // --- Single-threaded, no SIMD ---
+    // // --- Single-threaded, no SIMD ---
 
-    let time = Instant::now();
-    let mut state = [F::ZERO; 16];
-    for _ in 0..n {
-        poseidon1.permute_mut(&mut state);
-    }
-    let _ = black_box(state);
-    let time_p1 = time.elapsed();
-    println!(
-        "Poseidon1, single-threaded, no SIMD: {:.2}M hashes/s",
-        n as f64 / time_p1.as_secs_f64() / 1_000_000.0
-    );
+    // let time = Instant::now();
+    // let mut state = [F::ZERO; 16];
+    // for _ in 0..n {
+    //     poseidon1.permute_mut(&mut state);
+    // }
+    // let _ = black_box(state);
+    // let time_p1 = time.elapsed();
+    // println!(
+    //     "Poseidon1, single-threaded, no SIMD: {:.2}M hashes/s",
+    //     n as f64 / time_p1.as_secs_f64() / 1_000_000.0
+    // );
 
-    let time = Instant::now();
-    let mut state = [F::ZERO; 16];
-    for _ in 0..n {
-        poseidon2.permute_mut(&mut state);
-    }
-    let _ = black_box(state);
-    let time_p2 = time.elapsed();
-    println!(
-        "Poseidon2, single-threaded, no SIMD: {:.2}M hashes/s ({:.1}x faster than Poseidon1)",
-        n as f64 / time_p2.as_secs_f64() / 1_000_000.0,
-        time_p1.as_secs_f64() / time_p2.as_secs_f64()
-    );
+    // let time = Instant::now();
+    // let mut state = [F::ZERO; 16];
+    // for _ in 0..n {
+    //     poseidon2.permute_mut(&mut state);
+    // }
+    // let _ = black_box(state);
+    // let time_p2 = time.elapsed();
+    // println!(
+    //     "Poseidon2, single-threaded, no SIMD: {:.2}M hashes/s ({:.1}x faster than Poseidon1)",
+    //     n as f64 / time_p2.as_secs_f64() / 1_000_000.0,
+    //     time_p1.as_secs_f64() / time_p2.as_secs_f64()
+    // );
 
     // --- Single-threaded, SIMD ---
 
