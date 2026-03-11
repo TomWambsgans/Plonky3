@@ -113,3 +113,36 @@ mod tests {
         assert_eq!(output, expected);
     }
 }
+
+
+use p3_field::PrimeCharacteristicRing;
+use p3_mds::coset_mds::CosetMds;
+use p3_poseidon::{Poseidon, PoseidonExternalLayerGeneric, PoseidonInternalLayerGeneric};
+use p3_symmetric::Permutation;
+use rand::SeedableRng;
+use rand::rngs::SmallRng;
+
+use crate::KoalaBear;
+
+type Poseidon1KoalaBear16 = Poseidon<
+    KoalaBear,
+    PoseidonExternalLayerGeneric<KoalaBear, CosetMds<KoalaBear, 16>, 16>,
+    PoseidonInternalLayerGeneric<KoalaBear, 16>,
+    16,
+    3,
+>;
+#[test]
+fn plonky3_test() {
+    let mut rng = SmallRng::seed_from_u64(1);
+    let half_num_full_rounds = 4;
+    let num_partial_rounds = 20;
+    let poseidon1 = Poseidon1KoalaBear16::new_from_rng(
+        half_num_full_rounds,
+        num_partial_rounds,
+        &CosetMds::default(),
+        &mut rng,
+    );
+    let mut zero_input = [KoalaBear::ZERO; 16];
+    poseidon1.permute_mut(&mut zero_input);
+    dbg!(&zero_input);
+}

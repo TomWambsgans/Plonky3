@@ -1,5 +1,3 @@
-extern crate std;
-
 use core::hint::black_box;
 use std::println;
 use std::time::Instant;
