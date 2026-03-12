@@ -7,7 +7,7 @@ use p3_symmetric::Permutation;
 use rand::SeedableRng;
 use rand::rngs::SmallRng;
 
-use crate::{KoalaBear, MdsMatrixKoalaBear, PoseidonKoalaBear, default_koalabear_poseidon2_16};
+use crate::{KoalaBear, MdsMatrixKoalaBear, Poseidon1KoalaBear, default_koalabear_poseidon2_16};
 
 type FPacking = <KoalaBear as Field>::Packing;
 const PACKING_WIDTH: usize = <FPacking as PackedValue>::WIDTH;
@@ -21,7 +21,7 @@ fn bench_koalabear_poseidon1_vs_poseidon2() {
 
     let mds_kb: MdsMatrixKoalaBear = Default::default();
     let mut rng = SmallRng::seed_from_u64(1);
-    let poseidon1 = PoseidonKoalaBear::<16>::new_from_rng(4, 20, &mds_kb, &mut rng);
+    let poseidon1 = Poseidon1KoalaBear::<16>::new_from_rng(4, 20, &mds_kb, &mut rng);
     let poseidon2 = default_koalabear_poseidon2_16();
 
     let time = Instant::now();

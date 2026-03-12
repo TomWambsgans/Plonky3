@@ -24,7 +24,7 @@ rand.workspace = true
 p3-dft = { path = "../dft" }
 p3-field-testing = { path = "../field-testing" }
 p3-mds = { path = "../mds" }
-p3-poseidon = { path = "../poseidon" }
+p3-poseidon1 = { path = "../poseidon1" }
 p3-util = { path = "../util" }
 
 criterion.workspace = true
