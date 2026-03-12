@@ -79,11 +79,14 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub preprocessed_window: RowWindow<'a, PackedVal<SC>>,
     /// Public inputs to the [AIR](`p3_air::Air`) implementation.
     pub public_values: &'a [Val<SC>],
-    /// Evaluations of the Selector polynomial for the first row of the trace
+    /// Evaluations of the first-row selector polynomial.
+    /// Non-zero only on the first trace row.
     pub is_first_row: PackedVal<SC>,
-    /// Evaluations of the Selector polynomial for the last row of the trace
+    /// Evaluations of the last-row selector polynomial.
+    /// Non-zero only on the last trace row.
     pub is_last_row: PackedVal<SC>,
-    /// Evaluations of the Selector polynomial for rows where transition constraints should be applied
+    /// Evaluations of the transition selector polynomial.
+    /// Zero only on the last trace row.
     pub is_transition: PackedVal<SC>,
     /// Base-field alpha powers, reordered to match base constraint emission order.
     /// `base_alpha_powers[d][j]` = d-th basis coefficient of alpha power for j-th base constraint.
@@ -115,11 +118,14 @@ pub struct VerifierConstraintFolder<'a, SC: StarkGenericConfig> {
     pub preprocessed_window: RowWindow<'a, SC::Challenge>,
     /// Public values that are inputs to the computation
     pub public_values: &'a [Val<SC>],
-    /// Evaluations of the Selector polynomial for the first row of the trace
+    /// Evaluations of the first-row selector polynomial.
+    /// Non-zero only on the first trace row.
     pub is_first_row: SC::Challenge,
-    /// Evaluations of the Selector polynomial for the last row of the trace
+    /// Evaluations of the last-row selector polynomial.
+    /// Non-zero only on the last trace row.
     pub is_last_row: SC::Challenge,
-    /// Evaluations of the Selector polynomial for rows where transition constraints should be applied
+    /// Evaluations of the transition selector polynomial.
+    /// Zero only on the last trace row.
     pub is_transition: SC::Challenge,
     /// Single challenge value used for constraint combination
     pub alpha: SC::Challenge,
@@ -156,21 +162,17 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     type F = Val<SC>;
     type Expr = PackedVal<SC>;
     type Var = PackedVal<SC>;
+    type PreprocessedWindow = RowWindow<'a, PackedVal<SC>>;
+    type MainWindow = RowWindow<'a, PackedVal<SC>>;
     type PublicVar = Val<SC>;
-    type M = RowWindow<'a, PackedVal<SC>>;
 
     #[inline]
-    fn main(&self) -> Self::M {
+    fn main(&self) -> Self::MainWindow {
         RowWindow::from_view(&self.main)
     }
 
-    fn preprocessed(&self) -> &Self::M {
+    fn preprocessed(&self) -> &Self::PreprocessedWindow {
         &self.preprocessed_window
-    }
-
-    #[inline]
-    fn public_values(&self) -> &[Self::PublicVar] {
-        self.public_values
     }
 
     #[inline]
@@ -201,6 +203,11 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
         self.base_constraints.extend(expr_array);
         self.constraint_index += N;
     }
+
+    #[inline]
+    fn public_values(&self) -> &[Self::PublicVar] {
+        self.public_values
+    }
 }
 
 impl<SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'_, SC> {
@@ -221,19 +228,16 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for VerifierConstraintFolder<'a, SC>
     type F = Val<SC>;
     type Expr = SC::Challenge;
     type Var = SC::Challenge;
+    type PreprocessedWindow = RowWindow<'a, SC::Challenge>;
+    type MainWindow = RowWindow<'a, SC::Challenge>;
     type PublicVar = Val<SC>;
-    type M = RowWindow<'a, SC::Challenge>;
 
-    fn main(&self) -> Self::M {
+    fn main(&self) -> Self::MainWindow {
         RowWindow::from_two_rows(self.main.top.values, self.main.bottom.values)
     }
 
-    fn preprocessed(&self) -> &Self::M {
+    fn preprocessed(&self) -> &Self::PreprocessedWindow {
         &self.preprocessed_window
-    }
-
-    fn public_values(&self) -> &[Self::PublicVar] {
-        self.public_values
     }
 
     fn is_first_row(&self) -> Self::Expr {
@@ -252,5 +256,9 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for VerifierConstraintFolder<'a, SC>
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
         self.accumulator *= self.alpha;
         self.accumulator += x.into();
+    }
+
+    fn public_values(&self) -> &[Self::PublicVar] {
+        self.public_values
     }
 }
