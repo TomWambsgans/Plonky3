@@ -8,9 +8,9 @@ pub(crate) fn dit_butterfly<F: Field, A: Algebra<F>, const N: usize>(
     idx_2: usize,
     twiddle: F,
 ) {
-    let val_1 = values[idx_1].clone();
-    let val_2 = values[idx_2].clone() * twiddle;
-    values[idx_1] = val_1.clone() + val_2.clone();
+    let val_1 = values[idx_1];
+    let val_2 = values[idx_2] * twiddle;
+    values[idx_1] = val_1 + val_2;
     values[idx_2] = val_1 - val_2;
 }
 
@@ -22,9 +22,9 @@ pub(crate) fn dif_butterfly<F: Field, A: Algebra<F>, const N: usize>(
     idx_2: usize,
     twiddle: F,
 ) {
-    let val_1 = values[idx_1].clone();
-    let val_2 = values[idx_2].clone();
-    values[idx_1] = val_1.clone() + val_2.clone();
+    let val_1 = values[idx_1];
+    let val_2 = values[idx_2];
+    values[idx_1] = val_1 + val_2;
     values[idx_2] = (val_1 - val_2) * twiddle;
 }
 
@@ -35,9 +35,9 @@ pub(crate) fn twiddle_free_butterfly<F: Field, A: Algebra<F>, const N: usize>(
     idx_1: usize,
     idx_2: usize,
 ) {
-    let val_1 = values[idx_1].clone();
-    let val_2 = values[idx_2].clone();
-    values[idx_1] = val_1.clone() + val_2.clone();
+    let val_1 = values[idx_1];
+    let val_2 = values[idx_2];
+    values[idx_1] = val_1 + val_2;
     values[idx_2] = val_1 - val_2;
 }
 

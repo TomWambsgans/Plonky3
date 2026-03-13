@@ -229,7 +229,7 @@ pub(crate) fn eval<
         .iter_mut()
         .zip(air.constants.partial_round_residual.iter())
     {
-        *s += r.clone();
+        *s += *r;
     }
 
     // Phase 3: Ending full rounds (RF/2 rounds)
@@ -293,7 +293,7 @@ fn eval_full_round<
     // Step 1 & 2: For each state element, add the round constant and apply the S-box.
     for (i, (s, r)) in state.iter_mut().zip(round_constants.iter()).enumerate() {
         // AddRoundConstants: state[i] += rc[i].
-        *s += r.clone();
+        *s += *r;
 
         // S-box: state[i] = state[i]^DEGREE.
         // This also constrains any committed intermediate values.
@@ -306,7 +306,7 @@ fn eval_full_round<
     // Constrain: computed state must equal committed post-state.
     // Then reset state to the committed values (degree 1).
     for (state_i, post_i) in state.iter_mut().zip(full_round.post) {
-        builder.assert_eq(state_i.clone(), post_i);
+        builder.assert_eq(*state_i, post_i);
         *state_i = post_i.into();
     }
 }
@@ -334,7 +334,7 @@ fn eval_partial_round<
     builder: &mut AB,
 ) {
     // Step 1: Add the scalar constant to state[0] only.
-    state[0] += round_constant.clone();
+    state[0] += *round_constant;
 
     // Step 2: S-box on state[0] only (state[1..WIDTH] pass through unchanged).
     eval_sbox(&partial_round.sbox, &mut state[0], builder);
@@ -344,7 +344,7 @@ fn eval_partial_round<
 
     // Constrain the full post-state and reset degrees.
     for (state_i, post_i) in state.iter_mut().zip(partial_round.post) {
-        builder.assert_eq(state_i.clone(), post_i);
+        builder.assert_eq(*state_i, post_i);
         *state_i = post_i.into();
     }
 }
@@ -402,7 +402,7 @@ fn eval_sbox<AB, const DEGREE: u64, const REGISTERS: usize>(
         (5, 1) => {
             let committed_x3 = sbox.0[0].into();
             let x2 = x.square();
-            builder.assert_eq(committed_x3.clone(), x2.clone() * x.clone());
+            builder.assert_eq(committed_x3, x2 * *x);
             committed_x3 * x2
         }
 
@@ -411,8 +411,8 @@ fn eval_sbox<AB, const DEGREE: u64, const REGISTERS: usize>(
         //   Output:    (committed_x3)^2 * x = x^7
         (7, 1) => {
             let committed_x3 = sbox.0[0].into();
-            builder.assert_eq(committed_x3.clone(), x.cube());
-            committed_x3.square() * x.clone()
+            builder.assert_eq(committed_x3, x.cube());
+            committed_x3.square() * *x
         }
 
         // x^11 via committed x^3:
@@ -421,7 +421,7 @@ fn eval_sbox<AB, const DEGREE: u64, const REGISTERS: usize>(
         //   Max constraint degree: 5.
         (11, 1) => {
             let committed_x3 = sbox.0[0].into();
-            builder.assert_eq(committed_x3.clone(), x.cube());
+            builder.assert_eq(committed_x3, x.cube());
             committed_x3.cube() * x.square()
         }
 
@@ -433,8 +433,8 @@ fn eval_sbox<AB, const DEGREE: u64, const REGISTERS: usize>(
             let committed_x3 = sbox.0[0].into();
             let committed_x9 = sbox.0[1].into();
             let x2 = x.square();
-            builder.assert_eq(committed_x3.clone(), x2.clone() * x.clone());
-            builder.assert_eq(committed_x9.clone(), committed_x3.cube());
+            builder.assert_eq(committed_x3, x2 * *x);
+            builder.assert_eq(committed_x9, committed_x3.cube());
             committed_x9 * x2
         }
 

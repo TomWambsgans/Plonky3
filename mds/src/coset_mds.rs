@@ -52,7 +52,7 @@ impl<F: TwoAdicField, A: Algebra<F>, const N: usize> Permutation<[A; N]> for Cos
 
         // Multiply by powers of the coset shift (see default coset LDE impl for an explanation)
         for (value, weight) in values.iter_mut().zip(self.weights) {
-            *value = value.clone() * weight;
+            *value = *value * weight;
         }
 
         // DFT, assuming bit-reversed input.

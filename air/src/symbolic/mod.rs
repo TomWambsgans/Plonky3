@@ -1,271 +1,68 @@
 //! Symbolic expression types for AIR constraint representation.
+//!
+//! Uses a thread-local arena so that all symbolic expression types are `Copy`.
 
 mod builder;
 mod expression;
 pub(crate) mod expression_ext;
 mod variable;
 
-use alloc::sync::Arc;
-use core::iter::{Product, Sum};
+extern crate std;
+
+use alloc::vec::Vec;
+use core::cell::RefCell;
 use core::ops;
 
 pub use builder::*;
-pub use expression::{BaseLeaf, SymbolicExpression};
-pub use expression_ext::{ExtLeaf, SymbolicExpressionExt};
-use p3_field::{ExtensionField, Field, PrimeCharacteristicRing};
+pub use expression::{SymbolicBaseNode, SymbolicExpression};
+pub use expression_ext::SymbolicExpressionExt;
+use p3_field::{ExtensionField, Field};
 pub use variable::{BaseEntry, ExtEntry, SymbolicVariable, SymbolicVariableExt};
 
-/// Properties that leaf nodes must provide for the generic expression tree.
-///
-/// Both [`BaseLeaf`](expression::BaseLeaf) (base-field) and
-/// [`ExtLeaf`](expression_ext::ExtLeaf) (extension-field) implement this trait,
-/// enabling [`SymbolicExpr`] to handle constant folding, degree tracking, and
-/// arithmetic generically.
-pub trait SymLeaf: Clone + core::fmt::Debug {
-    /// The base field type used for constant folding.
-    type F: Field;
-
-    const ZERO: Self;
-    const ONE: Self;
-    const TWO: Self;
-    const NEG_ONE: Self;
-
-    /// Returns the degree multiple of this leaf.
-    fn degree_multiple(&self) -> usize;
-
-    /// Try to view this leaf as a base-field constant.
-    fn as_const(&self) -> Option<&Self::F>;
-
-    /// Create a leaf from a base-field constant.
-    fn from_const(c: Self::F) -> Self;
+/// Operation types for symbolic expression arena nodes.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SymbolicOperation {
+    Add,
+    Sub,
+    Mul,
+    Neg,
 }
 
-/// A symbolic expression tree, generic over its leaf type `A`.
-///
-/// This enum captures the shared tree structure — Add/Sub/Neg/Mul nodes with
-/// `Arc`-wrapped children and cached degree multiples — used by both base-field
-/// and extension-field symbolic expressions.
-///
-/// Concrete types are provided via type aliases:
-/// - [`SymbolicExpression<F>`] = `SymbolicExpr<BaseLeaf<F>>` (base-field constraints)
-/// - [`SymbolicExpressionExt<F, EF>`] = `SymbolicExpr<ExtLeaf<F, EF>>` (extension-field constraints)
-#[derive(Clone, Debug)]
-pub enum SymbolicExpr<A> {
-    /// A leaf node (variable, constant, selector, or lifted sub-expression).
-    Leaf(A),
-
-    /// Addition of two sub-expressions.
-    Add {
-        x: Arc<Self>,
-        y: Arc<Self>,
-        degree_multiple: usize,
-    },
-
-    /// Subtraction of two sub-expressions.
-    Sub {
-        x: Arc<Self>,
-        y: Arc<Self>,
-        degree_multiple: usize,
-    },
-
-    /// Negation of a sub-expression.
-    Neg {
-        x: Arc<Self>,
-        degree_multiple: usize,
-    },
-
-    /// Multiplication of two sub-expressions.
-    Mul {
-        x: Arc<Self>,
-        y: Arc<Self>,
-        degree_multiple: usize,
-    },
+// Thread-local byte arena for symbolic expression nodes.
+// This allows SymbolicExpression and SymbolicExpressionExt to be Copy
+// by storing tree nodes in the arena and referencing them by byte offset.
+std::thread_local! {
+    static ARENA: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
 }
 
-impl<A: SymLeaf> SymbolicExpr<A> {
-    /// Returns the degree multiple of this expression.
-    pub fn degree_multiple(&self) -> usize {
-        match self {
-            Self::Leaf(a) => a.degree_multiple(),
-            Self::Add {
-                degree_multiple, ..
-            }
-            | Self::Sub {
-                degree_multiple, ..
-            }
-            | Self::Neg {
-                degree_multiple, ..
-            }
-            | Self::Mul {
-                degree_multiple, ..
-            } => *degree_multiple,
+/// Allocate a node in the thread-local arena, returning its byte offset.
+pub(crate) fn alloc_node<T: Copy>(node: T) -> u32 {
+    ARENA.with(|arena| {
+        let mut bytes = arena.borrow_mut();
+        let node_size = core::mem::size_of::<T>();
+        let idx = bytes.len();
+        bytes.resize(idx + node_size, 0);
+        unsafe {
+            core::ptr::write_unaligned(bytes.as_mut_ptr().add(idx) as *mut T, node);
         }
-    }
-
-    /// Try to view this expression as a base-field constant.
-    fn as_const(&self) -> Option<&A::F> {
-        match self {
-            Self::Leaf(a) => a.as_const(),
-            _ => None,
-        }
-    }
-
-    /// Addition with constant folding and zero-identity elimination.
-    fn sym_add(self, rhs: Self) -> Self {
-        if let (Some(&a), Some(&b)) = (self.as_const(), rhs.as_const()) {
-            return Self::Leaf(A::from_const(a + b));
-        }
-        if self.as_const().is_some_and(|c| c.is_zero()) {
-            return rhs;
-        }
-        if rhs.as_const().is_some_and(|c| c.is_zero()) {
-            return self;
-        }
-        let dm = self.degree_multiple().max(rhs.degree_multiple());
-        Self::Add {
-            x: Arc::new(self),
-            y: Arc::new(rhs),
-            degree_multiple: dm,
-        }
-    }
-
-    /// Subtraction with constant folding and zero-identity elimination.
-    fn sym_sub(self, rhs: Self) -> Self {
-        if let (Some(&a), Some(&b)) = (self.as_const(), rhs.as_const()) {
-            return Self::Leaf(A::from_const(a - b));
-        }
-        if self.as_const().is_some_and(|c| c.is_zero()) {
-            return rhs.sym_neg();
-        }
-        if rhs.as_const().is_some_and(|c| c.is_zero()) {
-            return self;
-        }
-        let dm = self.degree_multiple().max(rhs.degree_multiple());
-        Self::Sub {
-            x: Arc::new(self),
-            y: Arc::new(rhs),
-            degree_multiple: dm,
-        }
-    }
-
-    /// Negation with constant folding.
-    fn sym_neg(self) -> Self {
-        if let Some(&c) = self.as_const() {
-            return Self::Leaf(A::from_const(-c));
-        }
-        let dm = self.degree_multiple();
-        Self::Neg {
-            x: Arc::new(self),
-            degree_multiple: dm,
-        }
-    }
-
-    /// Multiplication with constant folding, zero-annihilation, and one-identity.
-    fn sym_mul(self, rhs: Self) -> Self {
-        if let (Some(&a), Some(&b)) = (self.as_const(), rhs.as_const()) {
-            return Self::Leaf(A::from_const(a * b));
-        }
-        if self.as_const().is_some_and(|c| c.is_zero())
-            || rhs.as_const().is_some_and(|c| c.is_zero())
-        {
-            return Self::Leaf(A::from_const(A::F::ZERO));
-        }
-        if self.as_const().is_some_and(|c| c.is_one()) {
-            return rhs;
-        }
-        if rhs.as_const().is_some_and(|c| c.is_one()) {
-            return self;
-        }
-        let dm = self.degree_multiple() + rhs.degree_multiple();
-        Self::Mul {
-            x: Arc::new(self),
-            y: Arc::new(rhs),
-            degree_multiple: dm,
-        }
-    }
+        idx as u32
+    })
 }
 
-impl<A: SymLeaf> PrimeCharacteristicRing for SymbolicExpr<A> {
-    type PrimeSubfield = <A::F as PrimeCharacteristicRing>::PrimeSubfield;
-
-    const ZERO: Self = Self::Leaf(A::ZERO);
-    const ONE: Self = Self::Leaf(A::ONE);
-    const TWO: Self = Self::Leaf(A::TWO);
-    const NEG_ONE: Self = Self::Leaf(A::NEG_ONE);
-
-    #[inline]
-    fn from_prime_subfield(f: Self::PrimeSubfield) -> Self {
-        Self::Leaf(A::from_const(A::F::from_prime_subfield(f)))
-    }
+/// Read a node from the thread-local arena at the given byte offset.
+pub fn get_node<T: Copy>(idx: u32) -> T {
+    ARENA.with(|arena| {
+        let bytes = arena.borrow();
+        unsafe { core::ptr::read_unaligned(bytes.as_ptr().add(idx as usize) as *const T) }
+    })
 }
 
-impl<A: SymLeaf> Default for SymbolicExpr<A> {
-    fn default() -> Self {
-        Self::ZERO
-    }
+/// Clear the thread-local arena. Call before building symbolic constraints.
+pub fn clear_symbolic_arena() {
+    ARENA.with(|arena| arena.borrow_mut().clear());
 }
 
-impl<A: SymLeaf, T: Into<Self>> ops::Add<T> for SymbolicExpr<A> {
-    type Output = Self;
-    fn add(self, rhs: T) -> Self {
-        self.sym_add(rhs.into())
-    }
-}
-
-impl<A: SymLeaf, T: Into<Self>> ops::Sub<T> for SymbolicExpr<A> {
-    type Output = Self;
-    fn sub(self, rhs: T) -> Self {
-        self.sym_sub(rhs.into())
-    }
-}
-
-impl<A: SymLeaf> ops::Neg for SymbolicExpr<A> {
-    type Output = Self;
-    fn neg(self) -> Self {
-        self.sym_neg()
-    }
-}
-
-impl<A: SymLeaf, T: Into<Self>> ops::Mul<T> for SymbolicExpr<A> {
-    type Output = Self;
-    fn mul(self, rhs: T) -> Self {
-        self.sym_mul(rhs.into())
-    }
-}
-
-impl<A: SymLeaf, T: Into<Self>> ops::AddAssign<T> for SymbolicExpr<A> {
-    fn add_assign(&mut self, rhs: T) {
-        *self = self.clone() + rhs.into();
-    }
-}
-
-impl<A: SymLeaf, T: Into<Self>> ops::SubAssign<T> for SymbolicExpr<A> {
-    fn sub_assign(&mut self, rhs: T) {
-        *self = self.clone() - rhs.into();
-    }
-}
-
-impl<A: SymLeaf, T: Into<Self>> ops::MulAssign<T> for SymbolicExpr<A> {
-    fn mul_assign(&mut self, rhs: T) {
-        *self = self.clone() * rhs.into();
-    }
-}
-
-impl<A: SymLeaf, T: Into<Self>> Sum<T> for SymbolicExpr<A> {
-    fn sum<I: Iterator<Item = T>>(iter: I) -> Self {
-        iter.map(Into::into)
-            .reduce(|a, b| a + b)
-            .unwrap_or(Self::ZERO)
-    }
-}
-
-impl<A: SymLeaf, T: Into<Self>> Product<T> for SymbolicExpr<A> {
-    fn product<I: Iterator<Item = T>>(iter: I) -> Self {
-        iter.map(Into::into)
-            .reduce(|a, b| a * b)
-            .unwrap_or(Self::ONE)
-    }
-}
+// ── SymbolicVariable arithmetic ops ──────────────────────────────────
 
 impl<F: Field, T: Into<SymbolicExpression<F>>> ops::Add<T> for SymbolicVariable<F> {
     type Output = SymbolicExpression<F>;
@@ -287,6 +84,8 @@ impl<F: Field, T: Into<SymbolicExpression<F>>> ops::Mul<T> for SymbolicVariable<
         Self::Output::from(self) * rhs.into()
     }
 }
+
+// ── SymbolicVariableExt arithmetic ops ───────────────────────────────
 
 impl<F: Field, EF: ExtensionField<F>, T: Into<SymbolicExpressionExt<F, EF>>> ops::Add<T>
     for SymbolicVariableExt<F, EF>
@@ -319,10 +118,10 @@ impl<F: Field, EF: ExtensionField<F>, T: Into<SymbolicExpressionExt<F, EF>>> ops
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
+    use p3_field::PrimeCharacteristicRing;
 
     use super::*;
-    use crate::symbolic::expression::BaseLeaf;
-    use crate::symbolic::expression_ext::ExtLeaf;
+    use crate::symbolic::expression_ext::SymbolicExpressionExt;
     use crate::symbolic::variable::{BaseEntry, ExtEntry};
 
     type F = BabyBear;
@@ -330,180 +129,181 @@ mod tests {
 
     #[test]
     fn symbolic_variable_add_produces_add_node() {
-        // Adding a variable and a non-zero constant creates an addition node.
+        clear_symbolic_arena();
         let var = SymbolicVariable::<F>::new(BaseEntry::Main { offset: 0 }, 0);
         let expr = SymbolicExpression::from(F::new(5));
         let result = var + expr;
         match result {
-            SymbolicExpr::Add {
-                x,
-                y,
-                degree_multiple,
-            } => {
-                assert_eq!(degree_multiple, 1);
-                assert!(matches!(
-                    x.as_ref(),
-                    SymbolicExpr::Leaf(BaseLeaf::Variable(v))
-                        if v.index == 0 && v.entry == BaseEntry::Main { offset: 0 }
-                ));
-                assert!(matches!(
-                    y.as_ref(),
-                    SymbolicExpr::Leaf(BaseLeaf::Constant(c)) if *c == F::new(5)
-                ));
+            SymbolicExpression::Operation(idx) => {
+                let node = get_node::<expression::SymbolicBaseNode<F>>(idx);
+                assert_eq!(node.op, SymbolicOperation::Add);
+                assert_eq!(node.degree_multiple, 1);
+                assert!(matches!(node.lhs, SymbolicExpression::Variable(v) if v.index == 0));
+                assert!(matches!(node.rhs, SymbolicExpression::Constant(c) if c == F::new(5)));
             }
-            _ => panic!("Expected an Add node"),
+            _ => panic!("Expected an Operation node"),
         }
     }
 
     #[test]
     fn symbolic_variable_sub_produces_sub_node() {
-        // Subtracting two variables creates a subtraction node.
+        clear_symbolic_arena();
         let var = SymbolicVariable::<F>::new(BaseEntry::Main { offset: 0 }, 0);
-        let other = SymbolicExpression::Leaf(BaseLeaf::Variable(SymbolicVariable::new(
+        let other = SymbolicExpression::Variable(SymbolicVariable::new(
             BaseEntry::Main { offset: 0 },
             1,
-        )));
+        ));
         let result = var - other;
         match result {
-            SymbolicExpr::Sub {
-                x,
-                y,
-                degree_multiple,
-            } => {
-                assert_eq!(degree_multiple, 1);
-                assert!(matches!(
-                    x.as_ref(),
-                    SymbolicExpr::Leaf(BaseLeaf::Variable(v))
-                        if v.index == 0 && v.entry == BaseEntry::Main { offset: 0 }
-                ));
-                assert!(matches!(
-                    y.as_ref(),
-                    SymbolicExpr::Leaf(BaseLeaf::Variable(v))
-                        if v.index == 1 && v.entry == BaseEntry::Main { offset: 0 }
-                ));
+            SymbolicExpression::Operation(idx) => {
+                let node = get_node::<expression::SymbolicBaseNode<F>>(idx);
+                assert_eq!(node.op, SymbolicOperation::Sub);
+                assert_eq!(node.degree_multiple, 1);
             }
-            _ => panic!("Expected a Sub node"),
+            _ => panic!("Expected an Operation node"),
         }
     }
 
     #[test]
     fn symbolic_variable_mul_produces_mul_node() {
-        // Multiplying two variables creates a multiplication node with summed degree.
+        clear_symbolic_arena();
         let var = SymbolicVariable::<F>::new(BaseEntry::Main { offset: 0 }, 0);
-        let other = SymbolicExpression::Leaf(BaseLeaf::Variable(SymbolicVariable::new(
+        let other = SymbolicExpression::Variable(SymbolicVariable::new(
             BaseEntry::Main { offset: 0 },
             1,
-        )));
+        ));
         let result = var * other;
         match result {
-            SymbolicExpr::Mul {
-                x,
-                y,
-                degree_multiple,
-            } => {
-                assert_eq!(degree_multiple, 2);
-                assert!(matches!(
-                    x.as_ref(),
-                    SymbolicExpr::Leaf(BaseLeaf::Variable(v))
-                        if v.index == 0 && v.entry == BaseEntry::Main { offset: 0 }
-                ));
-                assert!(matches!(
-                    y.as_ref(),
-                    SymbolicExpr::Leaf(BaseLeaf::Variable(v))
-                        if v.index == 1 && v.entry == BaseEntry::Main { offset: 0 }
-                ));
+            SymbolicExpression::Operation(idx) => {
+                let node = get_node::<expression::SymbolicBaseNode<F>>(idx);
+                assert_eq!(node.op, SymbolicOperation::Mul);
+                assert_eq!(node.degree_multiple, 2);
             }
-            _ => panic!("Expected a Mul node"),
+            _ => panic!("Expected an Operation node"),
         }
     }
 
     #[test]
     fn symbolic_variable_ext_add_produces_add_node() {
-        // Adding an extension variable and a non-zero constant creates an addition node.
+        clear_symbolic_arena();
         let var = SymbolicVariableExt::<F, EF>::new(ExtEntry::Permutation { offset: 0 }, 0);
         let expr = SymbolicExpressionExt::<F, EF>::from(F::new(3));
         let result = var + expr;
         match result {
-            SymbolicExpr::Add {
-                x,
-                y,
-                degree_multiple,
-            } => {
-                assert_eq!(degree_multiple, 1);
-                assert!(matches!(
-                    x.as_ref(),
-                    SymbolicExpr::Leaf(ExtLeaf::ExtVariable(v))
-                        if v.index == 0 && v.entry == ExtEntry::Permutation { offset: 0 }
-                ));
-                assert!(matches!(
-                    y.as_ref(),
-                    SymbolicExpr::Leaf(ExtLeaf::Base(SymbolicExpr::Leaf(BaseLeaf::Constant(c))))
-                        if *c == F::new(3)
-                ));
+            SymbolicExpressionExt::Operation(idx) => {
+                let node =
+                    get_node::<expression_ext::SymbolicExtNode<F, EF>>(idx);
+                assert_eq!(node.op, SymbolicOperation::Add);
+                assert_eq!(node.degree_multiple, 1);
             }
-            _ => panic!("Expected an Add node"),
+            _ => panic!("Expected an Operation node"),
         }
     }
 
     #[test]
-    fn symbolic_variable_ext_sub_produces_sub_node() {
-        // Subtracting two extension variables creates a subtraction node.
-        let var = SymbolicVariableExt::<F, EF>::new(ExtEntry::Permutation { offset: 0 }, 0);
-        let other = SymbolicExpressionExt::<F, EF>::from(SymbolicVariableExt::<F, EF>::new(
-            ExtEntry::Permutation { offset: 0 },
-            1,
+    fn test_ring_constants() {
+        assert!(matches!(
+            SymbolicExpression::<F>::ZERO,
+            SymbolicExpression::Constant(c) if c == F::ZERO
         ));
-        let result = var - other;
-        match result {
-            SymbolicExpr::Sub {
-                x,
-                y,
-                degree_multiple,
-            } => {
-                assert_eq!(degree_multiple, 1);
-                assert!(matches!(
-                    x.as_ref(),
-                    SymbolicExpr::Leaf(ExtLeaf::ExtVariable(v))
-                        if v.index == 0 && v.entry == ExtEntry::Permutation { offset: 0 }
-                ));
-                assert!(matches!(
-                    y.as_ref(),
-                    SymbolicExpr::Leaf(ExtLeaf::ExtVariable(v))
-                        if v.index == 1 && v.entry == ExtEntry::Permutation { offset: 0 }
-                ));
-            }
-            _ => panic!("Expected a Sub node"),
-        }
+        assert!(matches!(
+            SymbolicExpression::<F>::ONE,
+            SymbolicExpression::Constant(c) if c == F::ONE
+        ));
+        assert!(matches!(
+            SymbolicExpression::<F>::TWO,
+            SymbolicExpression::Constant(c) if c == F::TWO
+        ));
+        assert!(matches!(
+            SymbolicExpression::<F>::NEG_ONE,
+            SymbolicExpression::Constant(c) if c == F::NEG_ONE
+        ));
     }
 
     #[test]
-    fn symbolic_variable_ext_mul_produces_mul_node() {
-        // Multiplying two extension variables creates a multiplication node with summed degree.
-        let var = SymbolicVariableExt::<F, EF>::new(ExtEntry::Permutation { offset: 0 }, 0);
-        let other = SymbolicExpressionExt::<F, EF>::from(SymbolicVariableExt::<F, EF>::new(
-            ExtEntry::Permutation { offset: 0 },
+    fn test_constant_folding() {
+        let a = SymbolicExpression::Constant(F::new(3));
+        let b = SymbolicExpression::Constant(F::new(4));
+        assert!(matches!(a + b, SymbolicExpression::Constant(c) if c == F::new(7)));
+
+        let a = SymbolicExpression::Constant(F::new(10));
+        let b = SymbolicExpression::Constant(F::new(4));
+        assert!(matches!(a - b, SymbolicExpression::Constant(c) if c == F::new(6)));
+
+        let a = SymbolicExpression::Constant(F::new(3));
+        let b = SymbolicExpression::Constant(F::new(5));
+        assert!(matches!(a * b, SymbolicExpression::Constant(c) if c == F::new(15)));
+
+        let a = SymbolicExpression::Constant(F::new(7));
+        assert!(matches!(-a, SymbolicExpression::Constant(c) if c == F::NEG_ONE * F::new(7)));
+    }
+
+    #[test]
+    fn test_identity_folding() {
+        clear_symbolic_arena();
+        let var = SymbolicExpression::Variable(SymbolicVariable::<F>::new(
+            BaseEntry::Main { offset: 0 },
+            0,
+        ));
+        let zero = SymbolicExpression::<F>::Constant(F::ZERO);
+        let one = SymbolicExpression::<F>::Constant(F::ONE);
+
+        // x + 0 = x
+        assert!(matches!(var + zero, SymbolicExpression::Variable(_)));
+        // 0 + x = x
+        assert!(matches!(zero + var, SymbolicExpression::Variable(_)));
+        // x - 0 = x
+        assert!(matches!(var - zero, SymbolicExpression::Variable(_)));
+        // x * 1 = x
+        assert!(matches!(var * one, SymbolicExpression::Variable(_)));
+        // 1 * x = x
+        assert!(matches!(one * var, SymbolicExpression::Variable(_)));
+        // x * 0 = 0
+        assert!(matches!(var * zero, SymbolicExpression::Constant(c) if c == F::ZERO));
+        // 0 * x = 0
+        assert!(matches!(zero * var, SymbolicExpression::Constant(c) if c == F::ZERO));
+    }
+
+    #[test]
+    fn test_sum_and_product() {
+        use alloc::vec;
+        let exprs = vec![
+            SymbolicExpression::Constant(F::new(2)),
+            SymbolicExpression::Constant(F::new(3)),
+            SymbolicExpression::Constant(F::new(5)),
+        ];
+        let result: SymbolicExpression<F> = exprs.into_iter().sum();
+        assert!(matches!(result, SymbolicExpression::Constant(c) if c == F::new(10)));
+
+        let exprs = vec![
+            SymbolicExpression::Constant(F::new(2)),
+            SymbolicExpression::Constant(F::new(3)),
+            SymbolicExpression::Constant(F::new(4)),
+        ];
+        let result: SymbolicExpression<F> = exprs.into_iter().product();
+        assert!(matches!(result, SymbolicExpression::Constant(c) if c == F::new(24)));
+    }
+
+    #[test]
+    fn test_degree_tracking() {
+        clear_symbolic_arena();
+        let a = SymbolicExpression::Variable(SymbolicVariable::<F>::new(
+            BaseEntry::Main { offset: 0 },
+            0,
+        ));
+        let b = SymbolicExpression::Variable(SymbolicVariable::<F>::new(
+            BaseEntry::Main { offset: 0 },
             1,
         ));
-        let result = var * other;
-        match result {
-            SymbolicExpr::Mul {
-                x,
-                y,
-                degree_multiple,
-            } => {
-                assert_eq!(degree_multiple, 2);
-                assert!(matches!(
-                    x.as_ref(),
-                    SymbolicExpr::Leaf(ExtLeaf::ExtVariable(v))
-                        if v.index == 0 && v.entry == ExtEntry::Permutation { offset: 0 }
-                ));
-                assert!(matches!(
-                    y.as_ref(),
-                    SymbolicExpr::Leaf(ExtLeaf::ExtVariable(v))
-                        if v.index == 1 && v.entry == ExtEntry::Permutation { offset: 0 }
-                ));
-            }
-            _ => panic!("Expected a Mul node"),
-        }
+        let c = SymbolicExpression::Variable(SymbolicVariable::<F>::new(
+            BaseEntry::Main { offset: 0 },
+            2,
+        ));
+
+        let ab = a * b;
+        assert_eq!(ab.degree_multiple(), 2);
+
+        let abc = ab * c;
+        assert_eq!(abc.degree_multiple(), 3);
     }
 }

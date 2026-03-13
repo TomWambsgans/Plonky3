@@ -1,6 +1,6 @@
 use p3_air::{
-    AirBuilder, BaseEntry, BaseLeaf, ExtensionBuilder, PermutationAirBuilder, RowWindow,
-    SymbolicExpression, WindowAccess,
+    AirBuilder, BaseEntry, ExtensionBuilder, PermutationAirBuilder, RowWindow,
+    SymbolicBaseNode, SymbolicExpression, SymbolicOperation, WindowAccess, get_node,
 };
 use p3_field::{Field, PrimeCharacteristicRing};
 use p3_matrix::dense::RowMajorMatrix;
@@ -156,57 +156,56 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for LookupTraceBuilder<'a
 /// Evaluates a symbolic expression in the context of an AIR builder.
 ///
 /// Converts `SymbolicExpression<F>` to the builder's expression type `AB::Expr`.
-pub fn symbolic_to_expr<AB>(builder: &AB, expr: &SymbolicExpression<AB::F>) -> AB::Expr
+pub fn symbolic_to_expr<AB>(builder: &AB, expr: SymbolicExpression<AB::F>) -> AB::Expr
 where
     AB: AirBuilder + PermutationAirBuilder,
 {
     match expr {
-        SymbolicExpression::Leaf(leaf) => match leaf {
-            BaseLeaf::Variable(v) => match v.entry {
-                BaseEntry::Main { offset } => {
-                    let main = builder.main();
-                    match offset {
-                        0 => main.current(v.index).unwrap().into(),
-                        1 => main.next(v.index).unwrap().into(),
-                        _ => panic!("Cannot have expressions involving more than two rows."),
-                    }
+        SymbolicExpression::Variable(v) => match v.entry {
+            BaseEntry::Main { offset } => {
+                let main = builder.main();
+                match offset {
+                    0 => main.current(v.index).unwrap().into(),
+                    1 => main.next(v.index).unwrap().into(),
+                    _ => panic!("Cannot have expressions involving more than two rows."),
                 }
-                BaseEntry::Periodic => {
-                    panic!("Periodic columns are not supported in lookup resolution")
+            }
+            BaseEntry::Periodic => {
+                panic!("Periodic columns are not supported in lookup resolution")
+            }
+            BaseEntry::Public => builder.public_values()[v.index].into(),
+            BaseEntry::Preprocessed { offset } => {
+                let prep = builder.preprocessed();
+                match offset {
+                    0 => prep.current(v.index).unwrap().into(),
+                    1 => prep.next(v.index).unwrap().into(),
+                    _ => panic!("Cannot have expressions involving more than two rows."),
                 }
-                BaseEntry::Public => builder.public_values()[v.index].into(),
-                BaseEntry::Preprocessed { offset } => {
-                    let prep = builder.preprocessed();
-                    match offset {
-                        0 => prep.current(v.index).unwrap().into(),
-                        1 => prep.next(v.index).unwrap().into(),
-                        _ => panic!("Cannot have expressions involving more than two rows."),
-                    }
-                }
-            },
-            BaseLeaf::IsFirstRow => {
-                warn!("IsFirstRow is not normalized");
-                builder.is_first_row()
             }
-            BaseLeaf::IsLastRow => {
-                warn!("IsLastRow is not normalized");
-                builder.is_last_row()
-            }
-            BaseLeaf::IsTransition => {
-                warn!("IsTransition is not normalized");
-                builder.is_transition_window(2)
-            }
-            BaseLeaf::Constant(c) => AB::Expr::from(*c),
         },
-        SymbolicExpression::Add { x, y, .. } => {
-            symbolic_to_expr(builder, x) + symbolic_to_expr(builder, y)
+        SymbolicExpression::IsFirstRow => {
+            warn!("IsFirstRow is not normalized");
+            builder.is_first_row()
         }
-        SymbolicExpression::Sub { x, y, .. } => {
-            symbolic_to_expr(builder, x) - symbolic_to_expr(builder, y)
+        SymbolicExpression::IsLastRow => {
+            warn!("IsLastRow is not normalized");
+            builder.is_last_row()
         }
-        SymbolicExpression::Neg { x, .. } => -symbolic_to_expr(builder, x),
-        SymbolicExpression::Mul { x, y, .. } => {
-            symbolic_to_expr(builder, x) * symbolic_to_expr(builder, y)
+        SymbolicExpression::IsTransition => {
+            warn!("IsTransition is not normalized");
+            builder.is_transition_window(2)
+        }
+        SymbolicExpression::Constant(c) => AB::Expr::from(c),
+        SymbolicExpression::Operation(idx) => {
+            let node: SymbolicBaseNode<AB::F> = get_node(idx);
+            let lhs = symbolic_to_expr(builder, node.lhs);
+            let rhs = symbolic_to_expr(builder, node.rhs);
+            match node.op {
+                SymbolicOperation::Add => lhs + rhs,
+                SymbolicOperation::Sub => lhs - rhs,
+                SymbolicOperation::Neg => -lhs,
+                SymbolicOperation::Mul => lhs * rhs,
+            }
         }
     }
 }

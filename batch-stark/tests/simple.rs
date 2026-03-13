@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use core::slice::from_ref;
 
 use p3_air::symbolic::{AirLayout, SymbolicAirBuilder, SymbolicExpression};
-use p3_air::{Air, AirBuilder, BaseAir, BaseLeaf, PermutationAirBuilder, WindowAccess};
+use p3_air::{Air, AirBuilder, BaseAir, PermutationAirBuilder, WindowAccess};
 use p3_baby_bear::{BabyBear, Poseidon2BabyBear};
 use p3_batch_stark::proof::{BatchProof, OpenedValuesWithLookups};
 use p3_batch_stark::{
@@ -271,13 +271,13 @@ impl<F: Field> LookupAir<F> for MulAirLookups {
                     // Lookup for 'a' against a permuted column.
                     (
                         vec![a.into()],
-                        SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE)),
+                        SymbolicExpression::Constant(F::ONE),
                         Direction::Receive,
                     ),
                     // Provide the range values (this would be done in the trace generation)
                     (
                         vec![lut.into()], // This represents the range values
-                        SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE)),
+                        SymbolicExpression::Constant(F::ONE),
                         Direction::Send,
                     ),
                 ];
@@ -295,7 +295,7 @@ impl<F: Field> LookupAir<F> for MulAirLookups {
                 // Global lookup between MulAir inputs and FibAir inputs
                 let lookup_inputs = vec![(
                     vec![a.into(), b.into()],
-                    SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE)),
+                    SymbolicExpression::Constant(F::ONE),
                     Direction::Send, // MulAir sends data to the global lookup
                 )];
 
@@ -439,7 +439,7 @@ impl<F: Field> LookupAir<F> for FibAirLookups {
             // Global lookup between FibAir inputs and MulAir inputs
             let lookup_inputs = vec![(
                 vec![left.into(), right.into()],
-                SymbolicExpression::Leaf(BaseLeaf::Constant(F::from_u64(multiplicity))),
+                SymbolicExpression::Constant(F::from_u64(multiplicity)),
                 Direction::Receive, // FibAir receives data from the global lookup
             )];
 

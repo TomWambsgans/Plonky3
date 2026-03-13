@@ -185,14 +185,14 @@ impl LogUpGadget {
             .map(|exprs| {
                 exprs
                     .iter()
-                    .map(|expr| symbolic_to_expr(builder, expr).into())
+                    .map(|expr| symbolic_to_expr(builder, *expr).into())
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
 
         let multiplicities = multiplicities_exprs
             .iter()
-            .map(|expr| symbolic_to_expr(builder, expr).into())
+            .map(|expr| symbolic_to_expr(builder, *expr).into())
             .collect::<Vec<_>>();
 
         // Access the permutation (aux) table. It carries the running sum column `s`.
@@ -485,11 +485,11 @@ impl LookupGadget for LogUpGadget {
                     // Then stores (α − combined) as the denominator.
                     for (j, elts) in context.element_exprs.iter().enumerate() {
                         let combined_elt = elts.iter().fold(SC::Challenge::ZERO, |acc, e| {
-                            acc * beta + symbolic_to_expr(&row_builder, e)
+                            acc * beta + symbolic_to_expr(&row_builder, *e)
                         });
                         denom_row[offset] = alpha - combined_elt;
                         mult_row[offset] =
-                            symbolic_to_expr(&row_builder, &context.multiplicities_exprs[j]);
+                            symbolic_to_expr(&row_builder, context.multiplicities_exprs[j]);
                         offset += 1;
                     }
                 }

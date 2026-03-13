@@ -157,14 +157,14 @@ pub fn cheap_matmul<F: Field, A: Algebra<F>, const WIDTH: usize>(
     v: &[F; WIDTH],
 ) {
     // Save state[0] before it is overwritten.
-    let old_s0 = state[0].clone();
+    let old_s0 = state[0];
 
     // Compute new state[0] = dot(first_row, state).
     state[0] = A::mixed_dot_product(state, first_row);
 
     // Rank-1 update: state[i] += v[i-1] * old_s0, for i = 1..WIDTH.
     for i in 1..WIDTH {
-        state[i] += old_s0.clone() * v[i - 1];
+        state[i] += old_s0 * v[i - 1];
     }
 }
 

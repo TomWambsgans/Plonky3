@@ -21,9 +21,9 @@ pub trait WindowAccess<T> {
     #[inline]
     fn current(&self, i: usize) -> Option<T>
     where
-        T: Clone,
+        T: Copy,
     {
-        self.current_slice().get(i).cloned()
+        self.current_slice().get(i).copied()
     }
 
     /// Single element from the next row by index.
@@ -32,9 +32,9 @@ pub trait WindowAccess<T> {
     #[inline]
     fn next(&self, i: usize) -> Option<T>
     where
-        T: Clone,
+        T: Copy,
     {
-        self.next_slice().get(i).cloned()
+        self.next_slice().get(i).copied()
     }
 }
 
@@ -449,7 +449,7 @@ pub trait PermutationAirBuilder: ExtensionBuilder {
     type RandomVar: Into<Self::ExprEF> + Copy;
 
     /// Value type for expected cumulated values used in global lookup arguments.
-    type PermutationVar: Into<Self::ExprEF> + Clone;
+    type PermutationVar: Into<Self::ExprEF> + Copy;
 
     /// Return the current and next row slices of the permutation trace.
     fn permutation(&self) -> Self::MP;
@@ -479,7 +479,7 @@ pub struct FilteredAirBuilder<'a, AB: AirBuilder> {
 
 impl<AB: AirBuilder> FilteredAirBuilder<'_, AB> {
     pub fn condition(&self) -> AB::Expr {
-        self.condition.clone()
+        self.condition
     }
 }
 

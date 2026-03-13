@@ -187,10 +187,10 @@ fn accumulate_lookup<F: Field>(
         for (tuple_idx, elements) in lookup.element_exprs.iter().enumerate() {
             let key = elements
                 .iter()
-                .map(|expr| symbolic_to_expr(&builder, expr))
+                .map(|expr| symbolic_to_expr(&builder, *expr))
                 .collect::<Vec<_>>();
 
-            let multiplicity = symbolic_to_expr(&builder, &lookup.multiplicities_exprs[tuple_idx]);
+            let multiplicity = symbolic_to_expr(&builder, lookup.multiplicities_exprs[tuple_idx]);
 
             multiset.add(
                 key,

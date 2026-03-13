@@ -62,7 +62,7 @@ impl<AB: AirBuilder> Air<AB> for KeccakAir {
         for y in 0..5 {
             for x in 0..5 {
                 builder
-                    .when(not_final_step.clone())
+                    .when(not_final_step)
                     .when_transition()
                     .assert_zeros::<U64_LIMBS, _>(array::from_fn(|limb| {
                         local.preimage[y][x][limb] - next.preimage[y][x][limb]
@@ -75,7 +75,7 @@ impl<AB: AirBuilder> Air<AB> for KeccakAir {
 
         // If this is not the final step, the export flag must be off.
         builder
-            .when(not_final_step.clone())
+            .when(not_final_step)
             .assert_zero(local.export);
 
         // C'[x, z] = xor(C[x, z], C[x - 1, z], C[x + 1, z - 1]).
@@ -132,7 +132,7 @@ impl<AB: AirBuilder> Air<AB> for KeccakAir {
             builder.assert_zeros::<64, _>(array::from_fn(|z| {
                 let sum: AB::Expr = (0..5).map(|y| local.a_prime[y][x][z].into()).sum();
                 let diff = sum - local.c_prime[x][z];
-                diff.clone() * (diff.clone() - AB::Expr::TWO) * (diff - four.clone())
+                diff * (diff - AB::Expr::TWO) * (diff - four)
             }));
         }
 
@@ -194,7 +194,7 @@ impl<AB: AirBuilder> Air<AB> for KeccakAir {
             for y in 0..5 {
                 builder
                     .when_transition()
-                    .when(not_final_step.clone())
+                    .when(not_final_step)
                     .assert_zeros::<U64_LIMBS, _>(array::from_fn(|limb| {
                         local.a_prime_prime_prime(y, x, limb) - next.a[y][x][limb]
                     }));

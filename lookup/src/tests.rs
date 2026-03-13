@@ -1,11 +1,10 @@
 use alloc::string::ToString;
-use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 
 use p3_air::symbolic::{AirLayout, SymbolicAirBuilder, SymbolicExpression};
 use p3_air::{
-    Air, AirBuilder, BaseAir, BaseLeaf, ExtensionBuilder, PermutationAirBuilder, WindowAccess,
+    Air, AirBuilder, BaseAir, ExtensionBuilder, PermutationAirBuilder, WindowAccess,
 };
 use p3_baby_bear::BabyBear;
 use p3_field::extension::BinomialExtensionField;
@@ -25,13 +24,17 @@ type F = BabyBear;
 type EF = BinomialExtensionField<F, 4>;
 
 fn create_symbolic_with_degree(degree: usize) -> SymbolicExpression<F> {
-    let x = Arc::new(SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE)));
-    let y = Arc::new(SymbolicExpression::Leaf(BaseLeaf::Constant(F::TWO)));
-    SymbolicExpression::Mul {
-        x,
-        y,
-        degree_multiple: degree,
+    use p3_air::{BaseEntry, SymbolicVariable};
+    if degree == 0 {
+        return SymbolicExpression::Constant(F::ONE);
     }
+    // Build a product of `degree` variables to get the desired degree_multiple.
+    let var = SymbolicExpression::Variable(SymbolicVariable::new(BaseEntry::Main { offset: 0 }, 0));
+    let mut result = var;
+    for _ in 1..degree {
+        result = result * var;
+    }
+    result
 }
 
 fn create_dummy_lookup(
@@ -315,7 +318,7 @@ impl LookupAir<F> for RangeCheckAir {
 
                 // Create arrays with longer lifetime for the context
                 let a_elements = vec![val.into()];
-                let a_multiplicities = SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE));
+                let a_multiplicities = SymbolicExpression::Constant(F::ONE);
 
                 let b_elements = vec![table_val.into()];
                 let b_multiplicities = mult.into();
@@ -590,9 +593,9 @@ fn test_symbolic_to_expr() {
         let last_expected_val = is_last_row * (mul - EF::from(local[0]));
 
         // Evaluate the constraints at row `i`.
-        let first_eval = symbolic_to_expr(&builder, &constraints[0]);
-        let transition_eval = symbolic_to_expr(&builder, &constraints[1]);
-        let last_eval = symbolic_to_expr(&builder, &constraints[2]);
+        let first_eval = symbolic_to_expr(&builder, constraints[0]);
+        let transition_eval = symbolic_to_expr(&builder, constraints[1]);
+        let last_eval = symbolic_to_expr(&builder, constraints[2]);
 
         // Assert that the evaluated constraints are correct.
         assert_eq!(first_expected_val, first_eval.into());
@@ -692,8 +695,8 @@ fn test_debug_util_detects_malformed_lookup() {
     // so the total multiset count is non-zero.
     let lookup = Lookup {
         kind: Kind::Local,
-        element_exprs: vec![vec![SymbolicExpression::Leaf(BaseLeaf::Variable(expr))]],
-        multiplicities_exprs: vec![SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE))],
+        element_exprs: vec![vec![expr.into()]],
+        multiplicities_exprs: vec![SymbolicExpression::Constant(F::ONE)],
         columns: vec![0],
     };
 
@@ -1207,7 +1210,7 @@ impl LookupAir<F> for AddAir {
 
         // Form the lookup inputs.
         let a_elements = vec![inp1.into(), inp2.into(), sum.into()];
-        let a_multiplicities = SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE));
+        let a_multiplicities = SymbolicExpression::Constant(F::ONE);
 
         // Extract columns for the LUT entries: [table_inp1, table_inp2, table_sum]
         let table_inp1 = symbolic_main_local[3];
@@ -1229,7 +1232,7 @@ impl LookupAir<F> for AddAir {
         if is_global {
             let lookup_inputs = vec![(
                 b_elements,
-                SymbolicExpression::Leaf(BaseLeaf::Constant(F::ONE)),
+                SymbolicExpression::Constant(F::ONE),
                 direction,
             )];
             let global_lookup =

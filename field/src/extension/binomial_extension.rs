@@ -251,7 +251,7 @@ where
 
     #[inline]
     fn halve(&self) -> Self {
-        Self::new(self.value.clone().map(|x| x.halve()))
+        Self::new(self.value.map(|x| x.halve()))
     }
 
     #[inline(always)]
@@ -266,14 +266,14 @@ where
     fn mul_2exp_u64(&self, exp: u64) -> Self {
         // Depending on the field, this might be a little slower than
         // the default implementation if the compiler doesn't realize `F::TWO.exp_u64(exp)` is a constant.
-        Self::new(self.value.clone().map(|x| x.mul_2exp_u64(exp)))
+        Self::new(self.value.map(|x| x.mul_2exp_u64(exp)))
     }
 
     #[inline]
     fn div_2exp_u64(&self, exp: u64) -> Self {
         // Depending on the field, this might be a little slower than
         // the default implementation if the compiler doesn't realize `F::ONE.halve().exp_u64(exp)` is a constant.
-        Self::new(self.value.clone().map(|x| x.div_2exp_u64(exp)))
+        Self::new(self.value.map(|x| x.div_2exp_u64(exp)))
     }
 
     #[inline]
@@ -578,7 +578,7 @@ where
 {
     #[inline]
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
@@ -589,7 +589,7 @@ where
 {
     #[inline]
     fn mul_assign(&mut self, rhs: A) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
@@ -651,24 +651,24 @@ impl<F: Field + HasTwoAdicBinomialExtension<D>, const D: usize> TwoAdicField
 
 /// Add two vectors element wise.
 #[inline]
-pub fn vector_add<R: PrimeCharacteristicRing + Add<R2, Output = R>, R2: Clone, const D: usize>(
+pub fn vector_add<R: PrimeCharacteristicRing + Add<R2, Output = R>, R2: Copy, const D: usize>(
     a: &[R; D],
     b: &[R2; D],
 ) -> [R; D] {
-    array::from_fn(|i| a[i].clone() + b[i].clone())
+    array::from_fn(|i| a[i] + b[i])
 }
 
 /// Subtract two vectors element wise.
 #[inline]
 pub(crate) fn vector_sub<
     R: PrimeCharacteristicRing + Sub<R2, Output = R>,
-    R2: Clone,
+    R2: Copy,
     const D: usize,
 >(
     a: &[R; D],
     b: &[R2; D],
 ) -> [R; D] {
-    array::from_fn(|i| a[i].clone() - b[i].clone())
+    array::from_fn(|i| a[i] - b[i])
 }
 
 /// Multiply two vectors representing elements in a binomial extension.
@@ -696,9 +696,9 @@ pub(super) fn binomial_mul<
             for i in 0..D {
                 for j in 0..D {
                     if i + j >= D {
-                        res[i + j - D] += a[i].clone() * w * b[j].clone();
+                        res[i + j - D] += a[i] * w * b[j];
                     } else {
-                        res[i + j] += a[i].clone() * b[j].clone();
+                        res[i + j] += a[i] * b[j];
                     }
                 }
             }
@@ -717,9 +717,9 @@ pub(super) fn binomial_square<F: Field, R: Algebra<F>, const D: usize>(
 ) {
     match D {
         2 => {
-            let a1_w = a[1].clone() * w;
-            res[0] = R::dot_product(a[..].try_into().unwrap(), &[a[0].clone(), a1_w]);
-            res[1] = a[0].clone() * a[1].double();
+            let a1_w = a[1] * w;
+            res[0] = R::dot_product(a[..].try_into().unwrap(), &[a[0], a1_w]);
+            res[1] = a[0] * a[1].double();
         }
         3 => cubic_square(a, res, w),
         4 => quartic_square(a, res, w),
@@ -749,18 +749,18 @@ where
     R: Algebra<F> + Algebra<R2>,
     R2: Algebra<F>,
 {
-    let b1_w = b[1].clone() * w;
+    let b1_w = b[1] * w;
 
     // Compute a0·b0 + a1·b1·w
     res[0] = R::dot_product(
         a[..].try_into().unwrap(),
-        &[b[0].clone().into(), b1_w.into()],
+        &[b[0].into(), b1_w.into()],
     );
 
     // Compute a0·b1 + a1·b0
     res[1] = R::dot_product(
-        &[a[0].clone(), a[1].clone()],
-        &[b[1].clone().into(), b[0].clone().into()],
+        &[a[0], a[1]],
+        &[b[1].into(), b[0].into()],
     );
 }
 
@@ -806,20 +806,20 @@ fn cubic_mul<F: Field, R: Algebra<F> + Algebra<R2>, R2: Algebra<F>, const D: usi
     // TODO: Test if we should switch to a naive multiplication approach using dot products.
     // This is mainly used for a degree 3 extension of Complex<Mersenne31> so this approach might be faster.
 
-    let a0_b0 = a[0].clone() * b[0].clone();
-    let a1_b1 = a[1].clone() * b[1].clone();
-    let a2_b2 = a[2].clone() * b[2].clone();
+    let a0_b0 = a[0] * b[0];
+    let a1_b1 = a[1] * b[1];
+    let a2_b2 = a[2] * b[2];
 
-    res[0] = a0_b0.clone()
-        + ((a[1].clone() + a[2].clone()) * (b[1].clone() + b[2].clone())
-            - a1_b1.clone()
-            - a2_b2.clone())
+    res[0] = a0_b0
+        + ((a[1] + a[2]) * (b[1] + b[2])
+            - a1_b1
+            - a2_b2)
             * w;
-    res[1] = (a[0].clone() + a[1].clone()) * (b[0].clone() + b[1].clone())
-        - a0_b0.clone()
-        - a1_b1.clone()
-        + a2_b2.clone() * w;
-    res[2] = (a[0].clone() + a[2].clone()) * (b[0].clone() + b[2].clone()) - a0_b0 - a2_b2 + a1_b1;
+    res[1] = (a[0] + a[1]) * (b[0] + b[1])
+        - a0_b0
+        - a1_b1
+        + a2_b2 * w;
+    res[2] = (a[0] + a[2]) * (b[0] + b[2]) - a0_b0 - a2_b2 + a1_b1;
 }
 
 /// Section 11.3.6a in Handbook of Elliptic and Hyperelliptic Curve Cryptography.
@@ -827,11 +827,11 @@ fn cubic_mul<F: Field, R: Algebra<F> + Algebra<R2>, R2: Algebra<F>, const D: usi
 fn cubic_square<F: Field, R: Algebra<F>, const D: usize>(a: &[R; D], res: &mut [R; D], w: F) {
     assert_eq!(D, 3);
 
-    let w_a2 = a[2].clone() * w;
+    let w_a2 = a[2] * w;
 
-    res[0] = a[0].square() + (a[1].clone() * w_a2.clone()).double();
-    res[1] = w_a2 * a[2].clone() + (a[0].clone() * a[1].clone()).double();
-    res[2] = a[1].square() + (a[0].clone() * a[2].clone()).double();
+    res[0] = a[0].square() + (a[1] * w_a2).double();
+    res[1] = w_a2 * a[2] + (a[0] * a[1]).double();
+    res[2] = a[1].square() + (a[0] * a[2]).double();
 }
 
 /// Multiplication in a quartic binomial extension field.
@@ -847,34 +847,34 @@ where
 {
     assert_eq!(D, 4);
     let b_r_rev: [R; 5] = [
-        b[3].clone().into(),
-        b[2].clone().into(),
-        b[1].clone().into(),
-        b[0].clone().into(),
+        b[3].into(),
+        b[2].into(),
+        b[1].into(),
+        b[0].into(),
         w.into(),
     ];
 
     // Constant term = a0*b0 + w(a1*b3 + a2*b2 + a3*b1)
     let w_coeff_0 =
         R::dot_product::<3>(a[1..].try_into().unwrap(), b_r_rev[..3].try_into().unwrap());
-    res[0] = R::dot_product(&[a[0].clone(), w_coeff_0], b_r_rev[3..].try_into().unwrap());
+    res[0] = R::dot_product(&[a[0], w_coeff_0], b_r_rev[3..].try_into().unwrap());
 
     // Linear term = a0*b1 + a1*b0 + w(a2*b3 + a3*b2)
     let w_coeff_1 =
         R::dot_product::<2>(a[2..].try_into().unwrap(), b_r_rev[..2].try_into().unwrap());
     res[1] = R::dot_product(
-        &[a[0].clone(), a[1].clone(), w_coeff_1],
+        &[a[0], a[1], w_coeff_1],
         b_r_rev[2..].try_into().unwrap(),
     );
 
     // Square term = a0*b2 + a1*b1 + a2*b0 + w(a3*b3)
-    let b3_w = b[3].clone() * w;
+    let b3_w = b[3] * w;
     res[2] = R::dot_product::<4>(
         a[..4].try_into().unwrap(),
         &[
-            b_r_rev[1].clone(),
-            b_r_rev[2].clone(),
-            b_r_rev[3].clone(),
+            b_r_rev[1],
+            b_r_rev[2],
+            b_r_rev[3],
             b3_w.into(),
         ],
     );
@@ -938,29 +938,29 @@ where
     let two_a0 = a[0].double();
     let two_a1 = a[1].double();
     let two_a2 = a[2].double();
-    let a2_w = a[2].clone() * w;
-    let a3_w = a[3].clone() * w;
+    let a2_w = a[2] * w;
+    let a3_w = a[3] * w;
 
     // Constant term = a0*a0 + w*a2*a2 + 2*w*a1*a3
     res[0] = R::dot_product(
-        &[a[0].clone(), a2_w, two_a1],
-        &[a[0].clone(), a[2].clone(), a3_w.clone()],
+        &[a[0], a2_w, two_a1],
+        &[a[0], a[2], a3_w],
     );
 
     // Linear term = 2*a0*a1 + 2*w*a2*a3)
     res[1] = R::dot_product(
-        &[two_a0.clone(), two_a2.clone()],
-        &[a[1].clone(), a3_w.clone()],
+        &[two_a0, two_a2],
+        &[a[1], a3_w],
     );
 
     // Square term = a1*a1 + w*a3*a3 + 2*a0*a2
     res[2] = R::dot_product(
-        &[a[1].clone(), a3_w, two_a0.clone()],
-        &[a[1].clone(), a[3].clone(), a[2].clone()],
+        &[a[1], a3_w, two_a0],
+        &[a[1], a[3], a[2]],
     );
 
     // Cubic term = 2*a0*a3 + 2*a1*a2)
-    res[3] = R::dot_product(&[two_a0, two_a2], &[a[3].clone(), a[1].clone()]);
+    res[3] = R::dot_product(&[two_a0, two_a2], &[a[3], a[1]]);
 }
 
 /// Multiplication in a quintic binomial extension field.
@@ -975,24 +975,24 @@ where
 {
     assert_eq!(D, 5);
     let b_r_rev: [R; 6] = [
-        b[4].clone().into(),
-        b[3].clone().into(),
-        b[2].clone().into(),
-        b[1].clone().into(),
-        b[0].clone().into(),
+        b[4].into(),
+        b[3].into(),
+        b[2].into(),
+        b[1].into(),
+        b[0].into(),
         w.into(),
     ];
 
     // Constant term = a0*b0 + w(a1*b4 + a2*b3 + a3*b2 + a4*b1)
     let w_coeff_0 =
         R::dot_product::<4>(a[1..].try_into().unwrap(), b_r_rev[..4].try_into().unwrap());
-    res[0] = R::dot_product(&[a[0].clone(), w_coeff_0], b_r_rev[4..].try_into().unwrap());
+    res[0] = R::dot_product(&[a[0], w_coeff_0], b_r_rev[4..].try_into().unwrap());
 
     // Linear term = a0*b1 + a1*b0 + w(a2*b4 + a3*b3 + a4*b2)
     let w_coeff_1 =
         R::dot_product::<3>(a[2..].try_into().unwrap(), b_r_rev[..3].try_into().unwrap());
     res[1] = R::dot_product(
-        &[a[0].clone(), a[1].clone(), w_coeff_1],
+        &[a[0], a[1], w_coeff_1],
         b_r_rev[3..].try_into().unwrap(),
     );
 
@@ -1000,19 +1000,19 @@ where
     let w_coeff_2 =
         R::dot_product::<2>(a[3..].try_into().unwrap(), b_r_rev[..2].try_into().unwrap());
     res[2] = R::dot_product(
-        &[a[0].clone(), a[1].clone(), a[2].clone(), w_coeff_2],
+        &[a[0], a[1], a[2], w_coeff_2],
         b_r_rev[2..].try_into().unwrap(),
     );
 
     // Cubic term = a0*b3 + a1*b2 + a2*b1 + a3*b0 + w*a4*b4
-    let b4_w = b[4].clone() * w;
+    let b4_w = b[4] * w;
     res[3] = R::dot_product::<5>(
         a[..5].try_into().unwrap(),
         &[
-            b_r_rev[1].clone(),
-            b_r_rev[2].clone(),
-            b_r_rev[3].clone(),
-            b_r_rev[4].clone(),
+            b_r_rev[1],
+            b_r_rev[2],
+            b_r_rev[3],
+            b_r_rev[4],
             b4_w.into(),
         ],
     );
@@ -1037,37 +1037,37 @@ where
     let two_a1 = a[1].double();
     let two_a2 = a[2].double();
     let two_a3 = a[3].double();
-    let w_a3 = a[3].clone() * w;
-    let w_a4 = a[4].clone() * w;
+    let w_a3 = a[3] * w;
+    let w_a4 = a[4] * w;
 
     // Constant term = a0*a0 + 2*w(a1*a4 + a2*a3)
     res[0] = R::dot_product(
-        &[a[0].clone(), w_a4.clone(), w_a3.clone()],
-        &[a[0].clone(), two_a1.clone(), two_a2.clone()],
+        &[a[0], w_a4, w_a3],
+        &[a[0], two_a1, two_a2],
     );
 
     // Linear term = w*a3*a3 + 2*(a0*a1 + w * a2*a4)
     res[1] = R::dot_product(
-        &[w_a3, two_a0.clone(), w_a4.clone()],
-        &[a[3].clone(), a[1].clone(), two_a2],
+        &[w_a3, two_a0, w_a4],
+        &[a[3], a[1], two_a2],
     );
 
     // Square term = a1*a1 + 2 * (a0*a2 + w*a3*a4)
     res[2] = R::dot_product(
-        &[a[1].clone(), two_a0.clone(), w_a4.clone()],
-        &[a[1].clone(), a[2].clone(), two_a3],
+        &[a[1], two_a0, w_a4],
+        &[a[1], a[2], two_a3],
     );
 
     // Cubic term = w*a4*a4 + 2*(a0*a3 + a1*a2)
     res[3] = R::dot_product(
-        &[w_a4, two_a0.clone(), two_a1.clone()],
-        &[a[4].clone(), a[3].clone(), a[2].clone()],
+        &[w_a4, two_a0, two_a1],
+        &[a[4], a[3], a[2]],
     );
 
     // Quartic term = a2*a2 + 2*(a0*a4 + a1*a3)
     res[4] = R::dot_product(
-        &[a[2].clone(), two_a0, two_a1],
-        &[a[2].clone(), a[4].clone(), a[3].clone()],
+        &[a[2], two_a0, two_a1],
+        &[a[2], a[4], a[3]],
     );
 }
 
@@ -1087,10 +1087,10 @@ where
     let a1_2 = a[1].double();
     let a2_2 = a[2].double();
     let a3_2 = a[3].double();
-    let w_a4 = a[4].clone() * w;
-    let w_a5 = a[5].clone() * w;
-    let w_a6 = a[6].clone() * w;
-    let w_a7 = a[7].clone() * w;
+    let w_a4 = a[4] * w;
+    let w_a5 = a[5] * w;
+    let w_a6 = a[6] * w;
+    let w_a7 = a[7] * w;
     let w_a5_2 = w_a5.double();
     let w_a6_2 = w_a6.double();
     let w_a7_2 = w_a7.double();
@@ -1098,91 +1098,91 @@ where
     // Constant coefficient = a0² + w (2(a1 * a7 + a2 * a6 + a3 * a5) + a4²)
     res[0] = R::dot_product(
         &[
-            a[0].clone(),
-            a[1].clone(),
-            a[2].clone(),
-            a[3].clone(),
-            a[4].clone(),
+            a[0],
+            a[1],
+            a[2],
+            a[3],
+            a[4],
         ],
         &[
-            a[0].clone(),
-            w_a7_2.clone(),
-            w_a6_2.clone(),
-            w_a5_2.clone(),
+            a[0],
+            w_a7_2,
+            w_a6_2,
+            w_a5_2,
             w_a4,
         ],
     );
 
     // Linear coefficient = 2(a0 * a1 + w(a2 * a7 + a3 * a6 + a4 * a5))
     res[1] = R::dot_product(
-        &[a0_2.clone(), a[2].clone(), a[3].clone(), a[4].clone()],
-        &[a[1].clone(), w_a7_2.clone(), w_a6_2.clone(), w_a5_2],
+        &[a0_2, a[2], a[3], a[4]],
+        &[a[1], w_a7_2, w_a6_2, w_a5_2],
     );
 
     // Square coefficient = 2a0 * a2 + a1² + w(2(a3 * a7 + a4 * a6) + a5²)
     res[2] = R::dot_product(
         &[
-            a0_2.clone(),
-            a[1].clone(),
-            a[3].clone(),
-            a[4].clone(),
-            a[5].clone(),
+            a0_2,
+            a[1],
+            a[3],
+            a[4],
+            a[5],
         ],
         &[
-            a[2].clone(),
-            a[1].clone(),
-            w_a7_2.clone(),
-            w_a6_2.clone(),
+            a[2],
+            a[1],
+            w_a7_2,
+            w_a6_2,
             w_a5,
         ],
     );
 
     // Cube coefficient = 2(a0 * a3 + a1 * a2 + w(a4 * a7 + a5 * a6)
     res[3] = R::dot_product(
-        &[a0_2.clone(), a1_2.clone(), a[4].clone(), a[5].clone()],
-        &[a[3].clone(), a[2].clone(), w_a7_2.clone(), w_a6_2],
+        &[a0_2, a1_2, a[4], a[5]],
+        &[a[3], a[2], w_a7_2, w_a6_2],
     );
 
     // Quartic coefficient = 2(a0 * a4 + a1 * a3) + a2² + w(2 * a7 * a5 + a6²)
     res[4] = R::dot_product(
         &[
-            a0_2.clone(),
-            a1_2.clone(),
-            a[2].clone(),
-            a[5].clone(),
-            a[6].clone(),
+            a0_2,
+            a1_2,
+            a[2],
+            a[5],
+            a[6],
         ],
         &[
-            a[4].clone(),
-            a[3].clone(),
-            a[2].clone(),
-            w_a7_2.clone(),
+            a[4],
+            a[3],
+            a[2],
+            w_a7_2,
             w_a6,
         ],
     );
 
     // Quintic coefficient = 2 * (a0 * a5 + a1 * a4 + a2 * a3 + w * a6 * a7)
     res[5] = R::dot_product(
-        &[a0_2.clone(), a1_2.clone(), a2_2.clone(), a[6].clone()],
-        &[a[5].clone(), a[4].clone(), a[3].clone(), w_a7_2],
+        &[a0_2, a1_2, a2_2, a[6]],
+        &[a[5], a[4], a[3], w_a7_2],
     );
 
     // Sextic coefficient = 2(a0 * a6 + a1 * a5 + a2 * a4) + a3² + w * a7²
     res[6] = R::dot_product(
         &[
-            a0_2.clone(),
-            a1_2.clone(),
-            a2_2.clone(),
-            a[3].clone(),
-            a[7].clone(),
+            a0_2,
+            a1_2,
+            a2_2,
+            a[3],
+            a[7],
         ],
-        &[a[6].clone(), a[5].clone(), a[4].clone(), a[3].clone(), w_a7],
+        &[a[6], a[5], a[4], a[3], w_a7],
     );
 
     // Final coefficient = 2(a0 * a7 + a1 * a6 + a2 * a5 + a3 * a4)
     res[7] = R::dot_product(
         &[a0_2, a1_2, a2_2, a3_2],
-        &[a[7].clone(), a[6].clone(), a[5].clone(), a[4].clone()],
+        &[a[7], a[6], a[5], a[4]],
     );
 }
 
@@ -1237,7 +1237,7 @@ where
         a[(D - N)..].try_into().unwrap(),
         b_rev[..N].try_into().unwrap(),
     );
-    let mut scratch: [R; D_PLUS_1_MIN_N] = array::from_fn(|i| a[i].clone());
+    let mut scratch: [R; D_PLUS_1_MIN_N] = array::from_fn(|i| a[i]);
     scratch[D_PLUS_1_MIN_N - 1] = w_coeff;
     R::dot_product(&scratch, b_rev[N..].try_into().unwrap())
 }
@@ -1256,14 +1256,14 @@ where
     assert_eq!(D, 8);
     let a: &[R; 8] = a[..].try_into().unwrap();
     let mut b_r_rev: [R; 9] = [
-        b[7].clone().into(),
-        b[6].clone().into(),
-        b[5].clone().into(),
-        b[4].clone().into(),
-        b[3].clone().into(),
-        b[2].clone().into(),
-        b[1].clone().into(),
-        b[0].clone().into(),
+        b[7].into(),
+        b[6].into(),
+        b[5].into(),
+        b[4].into(),
+        b[3].into(),
+        b[2].into(),
+        b[1].into(),
+        b[0].into(),
         w.into(),
     ];
 
@@ -1286,7 +1286,7 @@ where
     res[5] = compute_coefficient::<F, R, 8, 9, 2, 7>(a, &b_r_rev);
 
     // Sextic coefficient = a0*b6 + ... + a6*b0 + w*a7*b7
-    b_r_rev[8] *= b[7].clone();
+    b_r_rev[8] *= b[7];
     res[6] = R::dot_product::<8>(a, b_r_rev[1..].try_into().unwrap());
 
     // Final coefficient = a0*b7 + ... + a7*b0

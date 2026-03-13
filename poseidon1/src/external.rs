@@ -96,7 +96,7 @@ pub fn mds_multiply<F: PrimeCharacteristicRing, A: Algebra<F>, const WIDTH: usiz
     mds: &[[F; WIDTH]; WIDTH],
 ) {
     // Snapshot the current state before overwriting.
-    let input = state.clone();
+    let input = *state;
 
     // Compute each output element as a dot product of one MDS row with the input.
     for (out, row) in state.iter_mut().zip(mds.iter()) {
