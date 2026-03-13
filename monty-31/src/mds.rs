@@ -12,6 +12,7 @@ pub trait MDSUtils: Clone + Sync {
     const MATRIX_CIRC_MDS_8_COL: [i64; 8];
     const MATRIX_CIRC_MDS_12_COL: [i64; 12];
     const MATRIX_CIRC_MDS_16_COL: [i64; 16];
+    const MATRIX_CIRC_MDS_18_COL: [i64; 18];
     const MATRIX_CIRC_MDS_24_COL: [i64; 24];
     const MATRIX_CIRC_MDS_32_COL: [i64; 32];
     const MATRIX_CIRC_MDS_64_COL: [i64; 64];
@@ -327,6 +328,24 @@ impl<FP: MontyParameters, MU: MDSUtils> MdsPermutation<MontyField31<FP>, 16>
     for MdsMatrixMontyField31<MU>
 {
 }
+
+
+impl<FP: MontyParameters, MU: MDSUtils> Permutation<[MontyField31<FP>; 18]>
+    for MdsMatrixMontyField31<MU>
+{
+    fn permute(&self, input: [MontyField31<FP>; 18]) -> [MontyField31<FP>; 18] {
+        SmallConvolveMontyField31::apply(
+            input,
+            MU::MATRIX_CIRC_MDS_18_COL,
+            <SmallConvolveMontyField31 as Convolve<MontyField31<FP>, i64, i64>>::conv18,
+        )
+    }
+}
+impl<FP: MontyParameters, MU: MDSUtils> MdsPermutation<MontyField31<FP>, 18>
+    for MdsMatrixMontyField31<MU>
+{
+}
+
 
 impl<FP, MU: MDSUtils> Permutation<[MontyField31<FP>; 24]> for MdsMatrixMontyField31<MU>
 where

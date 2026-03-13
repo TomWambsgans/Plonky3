@@ -18,6 +18,9 @@ impl MDSUtils for MDSKoalaBearData {
         first_row_to_first_col(&[1, 1, 2, 1, 8, 9, 10, 7, 5, 9, 4, 10]);
     const MATRIX_CIRC_MDS_16_COL: [i64; 16] =
         first_row_to_first_col(&[1, 1, 51, 1, 11, 17, 2, 1, 101, 63, 15, 2, 67, 22, 13, 3]);
+    const MATRIX_CIRC_MDS_18_COL: [i64; 18] = first_row_to_first_col(&[
+        1, 1, 51, 1, 11, 17, 2, 1, 101, 63, 15, 2, 67, 22, 13, 3, 127, 131,
+    ]); // Fake MDS
     const MATRIX_CIRC_MDS_24_COL: [i64; 24] = first_row_to_first_col(&[
         0x2D0AAAAB, 0x64850517, 0x17F5551D, 0x04ECBEB5, 0x6D91A8D5, 0x60703026, 0x18D6F3CA,
         0x729601A7, 0x77CDA9E2, 0x3C0F5038, 0x26D52A61, 0x0360405D, 0x68FC71C8, 0x2495A71D,
@@ -113,7 +116,6 @@ mod tests {
         assert_eq!(output, expected);
     }
 }
-
 
 #[cfg(test)]
 mod poseidon1_generic_test {

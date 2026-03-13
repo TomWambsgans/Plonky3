@@ -90,8 +90,10 @@ impl PartialRoundBaseParameters<KoalaBearParameters, 16> for KoalaBearPoseidonPa
         MdsMatrixMontyField31::<MDSKoalaBearData>::default().permute_mut(state);
     }
 }
+impl PartialRoundBaseParameters<KoalaBearParameters, 18> for KoalaBearPoseidonParameters {}
 impl PartialRoundBaseParameters<KoalaBearParameters, 24> for KoalaBearPoseidonParameters {}
 impl PartialRoundParameters<KoalaBearParameters, 16> for KoalaBearPoseidonParameters {}
+impl PartialRoundParameters<KoalaBearParameters, 18> for KoalaBearPoseidonParameters {}
 impl PartialRoundParameters<KoalaBearParameters, 24> for KoalaBearPoseidonParameters {}
 
 /// Round constants for width-16 Poseidon1 on KoalaBear.

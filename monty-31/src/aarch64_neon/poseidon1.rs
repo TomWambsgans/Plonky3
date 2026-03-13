@@ -6,7 +6,9 @@ use core::marker::PhantomData;
 use core::mem::transmute;
 
 use p3_field::PrimeCharacteristicRing;
-use p3_mds::karatsuba_convolution::{mds_circulant_karatsuba_16, mds_circulant_karatsuba_24};
+use p3_mds::karatsuba_convolution::{
+    mds_circulant_karatsuba_16, mds_circulant_karatsuba_18, mds_circulant_karatsuba_24,
+};
 use p3_poseidon1::external::{
     FullRoundConstants, FullRoundLayer, FullRoundLayerConstructor, mds_multiply,
 };
@@ -15,7 +17,8 @@ use p3_poseidon1::internal::{
 };
 
 use super::poseidon2::{
-    InternalLayer16, InternalLayer24, add_rc_and_sbox, convert_to_vec_neg_form_neon,
+    InternalLayer16, InternalLayer18, InternalLayer24, add_rc_and_sbox,
+    convert_to_vec_neg_form_neon,
 };
 use crate::{
     FieldParameters, MDSUtils, MontyField31, PackedMontyField31Neon, PackedMontyParameters,
@@ -186,6 +189,57 @@ where
     }
 }
 
+impl<FP, ILP, const D: u64> PartialRoundLayer<PackedMontyField31Neon<FP>, 18, D>
+    for Poseidon1InternalLayerMonty31<FP, 18, ILP>
+where
+    FP: FieldParameters + RelativelyPrimePower<D>,
+    ILP: PartialRoundBaseParameters<FP, 18> + PartialRoundParametersNeon<FP, 18>,
+{
+    fn permute_state(&self, state: &mut [PackedMontyField31Neon<FP>; 18]) {
+        for (s, &c) in state
+            .iter_mut()
+            .zip(self.packed_first_round_constants.iter())
+        {
+            *s += c;
+        }
+
+        mds_multiply(state, &self.internal_constants.m_i);
+
+        let mut split = InternalLayer18::from_packed_field_array(*state);
+        let rounds_p = self.packed_sparse_first_row.len();
+
+        for r in 0..rounds_p {
+            unsafe {
+                let s0_signed = split.s0.to_signed_vector();
+                let s0_sboxed = exp_small::<FP, D>(s0_signed);
+                split.s0 = PackedMontyField31Neon::from_vector(s0_sboxed);
+            }
+
+            if r < rounds_p - 1 {
+                split.s0 += self.packed_round_constants[r];
+            }
+
+            let s_hi: &[PackedMontyField31Neon<FP>; 17] = unsafe { transmute(&split.s_hi) };
+            let first_row = &self.packed_sparse_first_row[r];
+            let first_row_hi: [PackedMontyField31Neon<FP>; 17] =
+                core::array::from_fn(|i| first_row[i + 1]);
+            let partial_dot = PackedMontyField31Neon::<FP>::dot_product(s_hi, &first_row_hi);
+
+            let s0_val = split.s0;
+            split.s0 = s0_val * first_row[0] + partial_dot;
+
+            let v = &self.packed_v[r];
+            let s_hi_mut: &mut [PackedMontyField31Neon<FP>; 17] =
+                unsafe { transmute(&mut split.s_hi) };
+            for j in 0..17 {
+                s_hi_mut[j] += s0_val * v[j];
+            }
+        }
+
+        *state = unsafe { split.to_packed_field_array() };
+    }
+}
+
 impl<FP, ILP, const D: u64> PartialRoundLayer<PackedMontyField31Neon<FP>, 24, D>
     for Poseidon1InternalLayerMonty31<FP, 24, ILP>
 where
@@ -266,6 +320,31 @@ where
                 add_rc_and_sbox::<FP, D>(s, rc);
             }
             mds_circulant_karatsuba_16(state, &self.circulant_col);
+        }
+    }
+}
+
+impl<FP, MU, const D: u64> FullRoundLayer<PackedMontyField31Neon<FP>, 18, D>
+    for Poseidon1ExternalLayerMonty31<FP, MU, 18>
+where
+    FP: FieldParameters + RelativelyPrimePower<D>,
+    MU: MDSUtils,
+{
+    fn permute_state_initial(&self, state: &mut [PackedMontyField31Neon<FP>; 18]) {
+        for round_constants in &self.packed_initial_constants {
+            for (s, &rc) in state.iter_mut().zip(round_constants.iter()) {
+                add_rc_and_sbox::<FP, D>(s, rc);
+            }
+            mds_circulant_karatsuba_18(state, &self.circulant_col);
+        }
+    }
+
+    fn permute_state_terminal(&self, state: &mut [PackedMontyField31Neon<FP>; 18]) {
+        for round_constants in &self.packed_terminal_constants {
+            for (s, &rc) in state.iter_mut().zip(round_constants.iter()) {
+                add_rc_and_sbox::<FP, D>(s, rc);
+            }
+            mds_circulant_karatsuba_18(state, &self.circulant_col);
         }
     }
 }

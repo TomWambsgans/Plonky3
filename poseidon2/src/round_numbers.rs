@@ -57,6 +57,7 @@ pub const fn poseidon2_round_numbers_128<F: PrimeField64>(
             (16, 7) => Ok((FULL_ROUNDS_128, 13)),
             (16, 9) => Ok((FULL_ROUNDS_128, 13)),
             (16, 11) => Ok((FULL_ROUNDS_128, 13)),
+            (18, 3) => Ok((FULL_ROUNDS_128, 20)),
             (24, 3) => Ok((FULL_ROUNDS_128, 23)),
             (24, 5) => Ok((FULL_ROUNDS_128, 22)),
             (24, 7) => Ok((FULL_ROUNDS_128, 21)),

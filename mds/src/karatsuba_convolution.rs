@@ -299,6 +299,32 @@ pub trait Convolve<F, T: ConvolutionElt, U: ConvolutionRhs> {
     }
 
     #[inline(always)]
+    fn conv9(lhs: [T; 9], rhs: [U; 9], output: &mut [T]) {
+        output[0] = Self::parity_dot(lhs, [rhs[0], rhs[8], rhs[7], rhs[6], rhs[5], rhs[4], rhs[3], rhs[2], rhs[1]]);
+        output[1] = Self::parity_dot(lhs, [rhs[1], rhs[0], rhs[8], rhs[7], rhs[6], rhs[5], rhs[4], rhs[3], rhs[2]]);
+        output[2] = Self::parity_dot(lhs, [rhs[2], rhs[1], rhs[0], rhs[8], rhs[7], rhs[6], rhs[5], rhs[4], rhs[3]]);
+        output[3] = Self::parity_dot(lhs, [rhs[3], rhs[2], rhs[1], rhs[0], rhs[8], rhs[7], rhs[6], rhs[5], rhs[4]]);
+        output[4] = Self::parity_dot(lhs, [rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], rhs[8], rhs[7], rhs[6], rhs[5]]);
+        output[5] = Self::parity_dot(lhs, [rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], rhs[8], rhs[7], rhs[6]]);
+        output[6] = Self::parity_dot(lhs, [rhs[6], rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], rhs[8], rhs[7]]);
+        output[7] = Self::parity_dot(lhs, [rhs[7], rhs[6], rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], rhs[8]]);
+        output[8] = Self::parity_dot(lhs, [rhs[8], rhs[7], rhs[6], rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0]]);
+    }
+
+    #[inline(always)]
+    fn negacyclic_conv9(lhs: [T; 9], rhs: [U; 9], output: &mut [T]) {
+        output[0] = Self::parity_dot(lhs, [rhs[0], -rhs[8], -rhs[7], -rhs[6], -rhs[5], -rhs[4], -rhs[3], -rhs[2], -rhs[1]]);
+        output[1] = Self::parity_dot(lhs, [rhs[1], rhs[0], -rhs[8], -rhs[7], -rhs[6], -rhs[5], -rhs[4], -rhs[3], -rhs[2]]);
+        output[2] = Self::parity_dot(lhs, [rhs[2], rhs[1], rhs[0], -rhs[8], -rhs[7], -rhs[6], -rhs[5], -rhs[4], -rhs[3]]);
+        output[3] = Self::parity_dot(lhs, [rhs[3], rhs[2], rhs[1], rhs[0], -rhs[8], -rhs[7], -rhs[6], -rhs[5], -rhs[4]]);
+        output[4] = Self::parity_dot(lhs, [rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], -rhs[8], -rhs[7], -rhs[6], -rhs[5]]);
+        output[5] = Self::parity_dot(lhs, [rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], -rhs[8], -rhs[7], -rhs[6]]);
+        output[6] = Self::parity_dot(lhs, [rhs[6], rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], -rhs[8], -rhs[7]]);
+        output[7] = Self::parity_dot(lhs, [rhs[7], rhs[6], rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0], -rhs[8]]);
+        output[8] = Self::parity_dot(lhs, [rhs[8], rhs[7], rhs[6], rhs[5], rhs[4], rhs[3], rhs[2], rhs[1], rhs[0]]);
+    }
+
+    #[inline(always)]
     fn conv6(lhs: [T; 6], rhs: [U; 6], output: &mut [T]) {
         Self::conv_n_recursive(lhs, rhs, output, Self::conv3, Self::negacyclic_conv3);
     }
@@ -336,6 +362,16 @@ pub trait Convolve<F, T: ConvolutionElt, U: ConvolutionRhs> {
     #[inline(always)]
     fn negacyclic_conv16(lhs: [T; 16], rhs: [U; 16], output: &mut [T]) {
         Self::negacyclic_conv_n_recursive(lhs, rhs, output, Self::negacyclic_conv8);
+    }
+
+    #[inline(always)]
+    fn conv18(lhs: [T; 18], rhs: [U; 18], output: &mut [T]) {
+        Self::conv_n_recursive(lhs, rhs, output, Self::conv9, Self::negacyclic_conv9);
+    }
+
+    #[inline(always)]
+    fn negacyclic_conv18(lhs: [T; 18], rhs: [U; 18], output: &mut [T]) {
+        Self::negacyclic_conv_n_recursive(lhs, rhs, output, Self::negacyclic_conv9);
     }
 
     #[inline(always)]
@@ -397,6 +433,16 @@ pub fn mds_circulant_karatsuba_16<F: Field, A: Algebra<F> + Copy>(
 ) {
     let input = *state;
     FieldConvolve::<F, A>::conv16(input, *col, state.as_mut_slice());
+}
+
+/// Circulant matrix-vector multiply for width 18 via Karatsuba convolution.
+#[inline]
+pub fn mds_circulant_karatsuba_18<F: Field, A: Algebra<F> + Copy>(
+    state: &mut [A; 18],
+    col: &[F; 18],
+) {
+    let input = *state;
+    FieldConvolve::<F, A>::conv18(input, *col, state.as_mut_slice());
 }
 
 /// Circulant matrix-vector multiply for width 24 via Karatsuba convolution.

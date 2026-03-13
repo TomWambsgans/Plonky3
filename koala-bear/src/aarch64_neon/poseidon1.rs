@@ -3,6 +3,7 @@ use p3_monty_31::PartialRoundParametersNeon;
 use crate::{KoalaBearParameters, KoalaBearPoseidonParameters};
 
 impl PartialRoundParametersNeon<KoalaBearParameters, 16> for KoalaBearPoseidonParameters {}
+impl PartialRoundParametersNeon<KoalaBearParameters, 18> for KoalaBearPoseidonParameters {}
 impl PartialRoundParametersNeon<KoalaBearParameters, 24> for KoalaBearPoseidonParameters {}
 
 #[cfg(test)]

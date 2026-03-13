@@ -49,3 +49,83 @@ fn bench_koalabear_poseidon1_vs_poseidon2() {
         time_p1_simd.as_secs_f64() / time_p2_simd.as_secs_f64()
     );
 }
+
+
+/*
+RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-koala-bear --lib -- poseidon1_vs_poseidon2_test::bench_poseidon1_16 --exact --nocapture
+*/
+#[test]
+fn bench_poseidon1_16() {
+    let n = 1 << 22;
+
+    let mds_kb: MdsMatrixKoalaBear = Default::default();
+    let mut rng = SmallRng::seed_from_u64(1);
+    let poseidon1 = Poseidon1KoalaBear::<16>::new_from_rng(4, 20, &mds_kb, &mut rng);
+
+    let time = Instant::now();
+    let mut state = [FPacking::ZERO; 16];
+    for _ in 0..n / PACKING_WIDTH {
+        poseidon1.permute_mut(&mut state);
+    }
+    let _ = black_box(state);
+    let time_p1_simd = time.elapsed();
+    println!(
+        "Poseidon1, single-threaded, SIMD: {:.2}M hashes/s",
+        n as f64 / time_p1_simd.as_secs_f64() / 1_000_000.0
+    );
+}
+
+
+/*
+RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-koala-bear --lib -- poseidon1_vs_poseidon2_test::bench_poseidon1_18 --exact --nocapture
+*/
+#[test]
+fn bench_poseidon1_18() {
+    let n = 1 << 22;
+
+    const STATE: usize = 18;
+
+    let mds_kb: MdsMatrixKoalaBear = Default::default();
+    let mut rng = SmallRng::seed_from_u64(1);
+    let poseidon1 = Poseidon1KoalaBear::<STATE>::new_from_rng(4, 20, &mds_kb, &mut rng);
+
+    let time = Instant::now();
+    let mut state = [FPacking::ZERO; STATE];
+    for _ in 0..n / PACKING_WIDTH {
+        poseidon1.permute_mut(&mut state);
+    }
+    let _ = black_box(state);
+    let time_p1_simd = time.elapsed();
+    println!(
+        "Poseidon1, single-threaded, SIMD: {:.2}M hashes/s",
+        n as f64 / time_p1_simd.as_secs_f64() / 1_000_000.0
+    );
+}
+
+
+
+/*
+RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-koala-bear --lib -- poseidon1_vs_poseidon2_test::bench_poseidon1_24 --exact --nocapture
+*/
+#[test]
+fn bench_poseidon1_24() {
+    let n = 1 << 22;
+
+    const STATE: usize = 24;
+
+    let mds_kb: MdsMatrixKoalaBear = Default::default();
+    let mut rng = SmallRng::seed_from_u64(1);
+    let poseidon1 = Poseidon1KoalaBear::<STATE>::new_from_rng(4, 23, &mds_kb, &mut rng);
+
+    let time = Instant::now();
+    let mut state = [FPacking::ZERO; STATE];
+    for _ in 0..n / PACKING_WIDTH {
+        poseidon1.permute_mut(&mut state);
+    }
+    let _ = black_box(state);
+    let time_p1_simd = time.elapsed();
+    println!(
+        "Poseidon1, single-threaded, SIMD: {:.2}M hashes/s",
+        n as f64 / time_p1_simd.as_secs_f64() / 1_000_000.0
+    );
+}

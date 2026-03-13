@@ -71,6 +71,27 @@ impl<PMP: PackedMontyParameters> InternalLayer16<PMP> {
     }
 }
 
+/// A specialized representation of the Poseidon state for a width of 18.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct InternalLayer18<PMP: PackedMontyParameters> {
+    pub(crate) s0: PackedMontyField31Neon<PMP>,
+    pub(crate) s_hi: [uint32x4_t; 17],
+}
+
+impl<PMP: PackedMontyParameters> InternalLayer18<PMP> {
+    #[inline]
+    pub(crate) unsafe fn to_packed_field_array(self) -> [PackedMontyField31Neon<PMP>; 18] {
+        unsafe { transmute(self) }
+    }
+
+    #[inline]
+    #[must_use]
+    pub(crate) fn from_packed_field_array(vector: [PackedMontyField31Neon<PMP>; 18]) -> Self {
+        unsafe { transmute(vector) }
+    }
+}
+
 /// A specialized representation of the Poseidon2 state for a width of 24.
 ///
 /// The primary purpose of this struct is to optimize the internal rounds by separating the state
