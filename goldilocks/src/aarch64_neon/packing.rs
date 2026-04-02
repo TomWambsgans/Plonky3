@@ -308,7 +308,7 @@ fn mul(x: uint64x2_t, y: uint64x2_t) -> uint64x2_t {
 /// Interleaved dual-lane multiplication and reduction using scalar ASM.
 /// Uses shift-based EPSILON multiplication: hi_lo * EPSILON = (hi_lo << 32) - hi_lo
 #[inline(always)]
-unsafe fn mul_reduce_dual_asm(a0: u64, b0: u64, a1: u64, b1: u64) -> (u64, u64) {
+pub(super) unsafe fn mul_reduce_dual_asm(a0: u64, b0: u64, a1: u64, b1: u64) -> (u64, u64) {
     use core::arch::asm;
     let result0: u64;
     let result1: u64;

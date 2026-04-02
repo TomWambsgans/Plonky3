@@ -1,49 +1,167 @@
+//! NEON-optimized cubic extension field arithmetic for Goldilocks.
+//!
+//! Key optimization: operates entirely in scalar `u64` space for additions
+//! and subtractions (avoiding the expensive NEON vector canonicalize/shift
+//! pipeline), while using the efficient interleaved dual-lane ASM for
+//! multiplications. The Karatsuba algorithm reduces multiplications from 9 to 6.
+
+use core::arch::aarch64::vgetq_lane_u64;
+use core::mem::transmute;
+
 use p3_field::extension::CubicExtendableAlgebra;
 
+use super::packing::mul_reduce_dual_asm;
 use super::PackedGoldilocksNeon;
-use crate::Goldilocks;
+use crate::{Goldilocks, P};
 
-/// NEON-optimized cubic extension arithmetic for `PackedGoldilocksNeon`.
-///
-/// Uses Karatsuba multiplication (6 base-field muls instead of 9)
-/// operating directly on `PackedGoldilocksNeon` values which pack 2
-/// independent Goldilocks field elements per NEON `uint64x2_t` register.
+const EPSILON: u64 = P.wrapping_neg(); // 2^32 - 1
+
+/// Goldilocks scalar addition: (a + b) mod P.
+/// Handles u64 overflow via EPSILON correction.
+#[inline(always)]
+const fn gadd(a: u64, b: u64) -> u64 {
+    let (sum, overflow) = a.overflowing_add(b);
+    let (res, _) = sum.overflowing_add(if overflow { EPSILON } else { 0 });
+    res
+}
+
+/// Goldilocks scalar subtraction: (a - b) mod P.
+/// Handles u64 underflow via EPSILON correction.
+#[inline(always)]
+const fn gsub(a: u64, b: u64) -> u64 {
+    let (diff, borrow) = a.overflowing_sub(b);
+    let (res, _) = diff.overflowing_sub(if borrow { EPSILON } else { 0 });
+    res
+}
+
 impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
+    /// Karatsuba multiplication operating in scalar u64 space.
+    ///
+    /// Each `PackedGoldilocksNeon` packs 2 independent Goldilocks elements.
+    /// This function:
+    /// 1. Extracts all 12 scalar values (6 inputs × 2 lanes)
+    /// 2. Computes 6 Karatsuba sums using fast scalar add (~3 instr each)
+    /// 3. Performs 6 interleaved dual-lane multiplications via ASM
+    /// 4. Reduces using fast scalar add/sub
+    /// 5. Packs the 6 output scalars back into 3 vectors
+    ///
+    /// This bypasses the NEON add/sub pipeline (which requires canonicalize +
+    /// shift + signed-compare per operation, ~11 instructions each) in favor
+    /// of simple scalar overflowing_add/sub with EPSILON correction (~3 instr).
     #[inline(always)]
     fn cubic_mul(a: &[Self; 3], b: &[Self; 3], res: &mut [Self; 3]) {
-        // Karatsuba: 6 multiplications instead of 9.
-        // Each multiplication here operates on 2 independent Goldilocks
-        // products in parallel via NEON uint64x2_t vectors.
-        let m0 = a[0] * b[0];
-        let m1 = a[1] * b[1];
-        let m2 = a[2] * b[2];
+        unsafe {
+            // Extract all scalar lanes.
+            let a0 = a[0].to_vector();
+            let a1 = a[1].to_vector();
+            let a2 = a[2].to_vector();
+            let b0 = b[0].to_vector();
+            let b1 = b[1].to_vector();
+            let b2 = b[2].to_vector();
 
-        let t01 = (a[0] + a[1]) * (b[0] + b[1]);
-        let t02 = (a[0] + a[2]) * (b[0] + b[2]);
-        let t12 = (a[1] + a[2]) * (b[1] + b[2]);
+            let a00 = vgetq_lane_u64::<0>(a0);
+            let a01 = vgetq_lane_u64::<1>(a0);
+            let a10 = vgetq_lane_u64::<0>(a1);
+            let a11 = vgetq_lane_u64::<1>(a1);
+            let a20 = vgetq_lane_u64::<0>(a2);
+            let a21 = vgetq_lane_u64::<1>(a2);
+            let b00 = vgetq_lane_u64::<0>(b0);
+            let b01 = vgetq_lane_u64::<1>(b0);
+            let b10 = vgetq_lane_u64::<0>(b1);
+            let b11 = vgetq_lane_u64::<1>(b1);
+            let b20 = vgetq_lane_u64::<0>(b2);
+            let b21 = vgetq_lane_u64::<1>(b2);
 
-        // c3 = a1*b2 + a2*b1 = t12 - m1 - m2
-        let c3 = t12 - m1 - m2;
+            // Karatsuba sums (scalar add, ~3 instr each).
+            let sa01_0 = gadd(a00, a10);
+            let sa01_1 = gadd(a01, a11);
+            let sa02_0 = gadd(a00, a20);
+            let sa02_1 = gadd(a01, a21);
+            let sa12_0 = gadd(a10, a20);
+            let sa12_1 = gadd(a11, a21);
+            let sb01_0 = gadd(b00, b10);
+            let sb01_1 = gadd(b01, b11);
+            let sb02_0 = gadd(b00, b20);
+            let sb02_1 = gadd(b01, b21);
+            let sb12_0 = gadd(b10, b20);
+            let sb12_1 = gadd(b11, b21);
 
-        // Reduction: X^3 = X + 1, X^4 = X^2 + X
-        res[0] = m0 + c3;
-        res[1] = t01 + c3 + m2 - m0 - m1;
-        res[2] = t02 - m0 + m1;
+            // 6 Karatsuba multiplications via interleaved dual-lane ASM.
+            // Each call processes both lanes simultaneously for ILP.
+            let (m0_0, m0_1) = mul_reduce_dual_asm(a00, b00, a01, b01);
+            let (m1_0, m1_1) = mul_reduce_dual_asm(a10, b10, a11, b11);
+            let (m2_0, m2_1) = mul_reduce_dual_asm(a20, b20, a21, b21);
+            let (t01_0, t01_1) = mul_reduce_dual_asm(sa01_0, sb01_0, sa01_1, sb01_1);
+            let (t02_0, t02_1) = mul_reduce_dual_asm(sa02_0, sb02_0, sa02_1, sb02_1);
+            let (t12_0, t12_1) = mul_reduce_dual_asm(sa12_0, sb12_0, sa12_1, sb12_1);
+
+            // Reduction: X^3 = X + 1, X^4 = X^2 + X
+            // c3 = t12 - m1 - m2
+            let c3_0 = gsub(gsub(t12_0, m1_0), m2_0);
+            let c3_1 = gsub(gsub(t12_1, m1_1), m2_1);
+
+            // r0 = m0 + c3
+            let r0_0 = gadd(m0_0, c3_0);
+            let r0_1 = gadd(m0_1, c3_1);
+
+            // r1 = t01 + c3 + m2 - m0 - m1
+            let r1_0 = gsub(gsub(gadd(gadd(t01_0, c3_0), m2_0), m0_0), m1_0);
+            let r1_1 = gsub(gsub(gadd(gadd(t01_1, c3_1), m2_1), m0_1), m1_1);
+
+            // r2 = t02 - m0 + m1
+            let r2_0 = gadd(gsub(t02_0, m0_0), m1_0);
+            let r2_1 = gadd(gsub(t02_1, m0_1), m1_1);
+
+            // Pack back into vectors.
+            res[0] = Self::from_vector(transmute([r0_0, r0_1]));
+            res[1] = Self::from_vector(transmute([r1_0, r1_1]));
+            res[2] = Self::from_vector(transmute([r2_0, r2_1]));
+        }
     }
 
+    /// Squaring in scalar u64 space.
+    ///
+    /// Uses 3 squares + 3 multiplications with scalar add/sub for reduction.
     #[inline(always)]
     fn cubic_square(a: &[Self; 3], res: &mut [Self; 3]) {
-        // Optimized squaring: 3 squares + 3 multiplications.
-        // Each operation processes 2 independent Goldilocks squarings in parallel.
-        let a0_sq = a[0] * a[0];
-        let a2_sq = a[2] * a[2];
-        let a1a2_2 = (a[1] + a[1]) * a[2]; // 2*a1*a2
+        unsafe {
+            let a0 = a[0].to_vector();
+            let a1 = a[1].to_vector();
+            let a2 = a[2].to_vector();
 
-        // r0 = a0^2 + 2*a1*a2
-        res[0] = a0_sq + a1a2_2;
-        // r1 = 2*a1*(a0 + a2) + a2^2
-        res[1] = (a[1] + a[1]) * (a[0] + a[2]) + a2_sq;
-        // r2 = 2*a0*a2 + a1^2 + a2^2
-        res[2] = (a[0] + a[0]) * a[2] + a[1] * a[1] + a2_sq;
+            let a00 = vgetq_lane_u64::<0>(a0);
+            let a01 = vgetq_lane_u64::<1>(a0);
+            let a10 = vgetq_lane_u64::<0>(a1);
+            let a11 = vgetq_lane_u64::<1>(a1);
+            let a20 = vgetq_lane_u64::<0>(a2);
+            let a21 = vgetq_lane_u64::<1>(a2);
+
+            // a0^2, a1^2, a2^2
+            let (a0sq_0, a0sq_1) = mul_reduce_dual_asm(a00, a00, a01, a01);
+            let (a1sq_0, a1sq_1) = mul_reduce_dual_asm(a10, a10, a11, a11);
+            let (a2sq_0, a2sq_1) = mul_reduce_dual_asm(a20, a20, a21, a21);
+
+            // Cross products
+            let (a0a1_0, a0a1_1) = mul_reduce_dual_asm(a00, a10, a01, a11);
+            let (a0a2_0, a0a2_1) = mul_reduce_dual_asm(a00, a20, a01, a21);
+            let (a1a2_0, a1a2_1) = mul_reduce_dual_asm(a10, a20, a11, a21);
+
+            // Reduction: X^3 = X + 1, X^4 = X^2 + X
+            // r0 = a0^2 + 2*a1*a2
+            let r0_0 = gadd(a0sq_0, gadd(a1a2_0, a1a2_0));
+            let r0_1 = gadd(a0sq_1, gadd(a1a2_1, a1a2_1));
+
+            // r1 = 2*a0*a1 + 2*a1*a2 + a2^2
+            let r1_0 = gadd(gadd(gadd(a0a1_0, a0a1_0), gadd(a1a2_0, a1a2_0)), a2sq_0);
+            let r1_1 = gadd(gadd(gadd(a0a1_1, a0a1_1), gadd(a1a2_1, a1a2_1)), a2sq_1);
+
+            // r2 = 2*a0*a2 + a1^2 + a2^2
+            let r2_0 = gadd(gadd(gadd(a0a2_0, a0a2_0), a1sq_0), a2sq_0);
+            let r2_1 = gadd(gadd(gadd(a0a2_1, a0a2_1), a1sq_1), a2sq_1);
+
+            res[0] = Self::from_vector(transmute([r0_0, r0_1]));
+            res[1] = Self::from_vector(transmute([r1_0, r1_1]));
+            res[2] = Self::from_vector(transmute([r2_0, r2_1]));
+        }
     }
 }
