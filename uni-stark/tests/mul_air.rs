@@ -1,5 +1,6 @@
 use core::fmt::Debug;
 use core::marker::PhantomData;
+use std::hint::black_box;
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir, WindowAccess};
@@ -9,10 +10,14 @@ use p3_circle::CirclePcs;
 use p3_commit::ExtensionMmcs;
 use p3_commit::testing::TrivialPcs;
 use p3_dft::Radix2DitParallel;
-use p3_field::extension::BinomialExtensionField;
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::extension::{
+    BinomialExtensionField, CubicTrinomialExtensionField, QuinticTrinomialExtensionField,
+};
+use p3_field::{ExtensionField, Field, PackedValue, PrimeCharacteristicRing};
 use p3_fri::{FriParameters, HidingFriPcs, TwoAdicFriPcs, create_test_fri_params_zk};
+use p3_goldilocks::Goldilocks;
 use p3_keccak::Keccak256Hash;
+use p3_koala_bear::KoalaBear;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_merkle_tree::{MerkleTreeHidingMmcs, MerkleTreeMmcs};
 use p3_mersenne_31::Mersenne31;
@@ -360,4 +365,71 @@ fn prove_m31_circle_deg2() -> Result<(), impl Debug> {
 #[test]
 fn prove_m31_circle_deg3() -> Result<(), impl Debug> {
     do_test_m31_circle(1, 3, 7)
+}
+
+#[test]
+fn bench_fields() {
+    let n = 10_000_000;
+    assert_eq!(<Goldilocks as Field>::Packing::WIDTH, 2);
+    assert_eq!(<KoalaBear as Field>::Packing::WIDTH, 4);
+
+    let mut a = <Goldilocks as Field>::Packing::from_i32(3);
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / <Goldilocks as Field>::Packing::WIDTH {
+        a *= a * a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks: {:.3}M mults/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
+    let mut a = <KoalaBear as Field>::Packing::from_i32(3);
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / <KoalaBear as Field>::Packing::WIDTH {
+        a *= a * a;
+    }
+    let _ = black_box(a);
+    println!(
+        "KoalaBear: {:.3}M mults/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+}
+
+#[test]
+fn bench_ext_fields() {
+    let n = 10_000_000;
+    type G3 = CubicTrinomialExtensionField<Goldilocks>;
+    type K5 = QuinticTrinomialExtensionField<KoalaBear>;
+    type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
+    type K5P = <K5 as ExtensionField<KoalaBear>>::ExtensionPacking;
+
+    assert_eq!(G3::WIDTH, 2);
+    assert_eq!(K5::WIDTH, 4);
+
+    let mut a = G3P::from(G3::from_usize(3));
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / G3::WIDTH {
+        a *= a * a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks^3: {:.3}M mults/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
+    let mut a = K5P::from(K5::from_usize(3));
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / K5::WIDTH {
+        a *= a * a;
+    }
+    let _ = black_box(a);
+    println!(
+        "KoalaBear^5: {:.3}M mults/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
 }

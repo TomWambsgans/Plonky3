@@ -17,6 +17,8 @@ p3-field.workspace = true
 p3-matrix.workspace = true
 p3-maybe-rayon.workspace = true
 p3-util.workspace = true
+p3-goldilocks.workspace = true
+p3-koala-bear.workspace = true
 
 itertools.workspace = true
 serde = { workspace = true, features = ["derive", "alloc"] }
