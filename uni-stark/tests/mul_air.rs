@@ -400,19 +400,19 @@ fn bench_fields() {
 
 #[test]
 fn bench_ext_fields() {
-    let n = 10_000_000;
+    let n = 100_000_000;
     type G3 = CubicTrinomialExtensionField<Goldilocks>;
     type K5 = QuinticTrinomialExtensionField<KoalaBear>;
     type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type K5P = <K5 as ExtensionField<KoalaBear>>::ExtensionPacking;
 
-    assert_eq!(G3::WIDTH, 2);
-    assert_eq!(K5::WIDTH, 4);
+    assert_eq!(G3P::WIDTH, 2);
+    assert_eq!(K5P::WIDTH, 4);
 
     let mut a = G3P::from(G3::from_usize(3));
 
     let time = std::time::Instant::now();
-    for _ in 0..n / G3::WIDTH {
+    for _ in 0..n / G3P::WIDTH {
         a *= a * a;
     }
     let _ = black_box(a);
@@ -424,7 +424,7 @@ fn bench_ext_fields() {
     let mut a = K5P::from(K5::from_usize(3));
 
     let time = std::time::Instant::now();
-    for _ in 0..n / K5::WIDTH {
+    for _ in 0..n / K5P::WIDTH {
         a *= a * a;
     }
     let _ = black_box(a);

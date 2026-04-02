@@ -23,8 +23,8 @@ use rand::prelude::Distribution;
 use serde::{Deserialize, Serialize};
 
 use super::packed_cubic_extension::PackedCubicTrinomialExtensionField;
-use super::{HasFrobenius, HasTwoAdicCubicExtension};
-use crate::extension::{CubicExtendableAlgebra, CubicTrinomialExtendable};
+use super::{CubicExtendableAlgebra, HasFrobenius, HasTwoAdicCubicExtension};
+use crate::extension::CubicTrinomialExtendable;
 use crate::field::Field;
 use crate::{
     Algebra, BasedVectorSpace, ExtensionField, Packable, PackedFieldExtension,
@@ -136,6 +136,7 @@ impl<F: CubicTrinomialExtendable, A: Algebra<F>> BasedVectorSpace<A>
 
 impl<F: CubicTrinomialExtendable> ExtensionField<F> for CubicTrinomialExtensionField<F>
 where
+    F::Packing: CubicExtendableAlgebra<F>,
     PackedCubicTrinomialExtensionField<F, F::Packing>: PackedFieldExtension<F, Self>,
 {
     type ExtensionPacking = PackedCubicTrinomialExtensionField<F, F::Packing>;
@@ -151,7 +152,10 @@ where
     }
 }
 
-impl<F: CubicTrinomialExtendable> HasFrobenius<F> for CubicTrinomialExtensionField<F> {
+impl<F: CubicTrinomialExtendable> HasFrobenius<F> for CubicTrinomialExtensionField<F>
+where
+    F::Packing: CubicExtendableAlgebra<F>,
+{
     #[inline]
     fn frobenius(&self) -> Self {
         let a = &self.value;
@@ -645,24 +649,29 @@ impl<F: CubicTrinomialExtendable + HasTwoAdicCubicExtension> TwoAdicField
 
 /// Multiply two elements in the cubic trinomial extension field (X^3 - X - 1).
 ///
+/// Uses Karatsuba: 6 base-field multiplications instead of 9 schoolbook.
 /// Reduction: X^3 = X + 1, X^4 = X^2 + X
 #[inline]
 pub fn trinomial_cubic_mul<R: PrimeCharacteristicRing>(a: &[R; 3], b: &[R; 3], res: &mut [R; 3]) {
-    // Convolution coefficients c_k = sum_{i+j=k} a_i * b_j
-    let c0 = a[0].dup() * b[0].dup();
-    let c1 = R::dot_product::<2>(&[a[0].dup(), a[1].dup()], &[b[1].dup(), b[0].dup()]);
-    let c2 = R::dot_product::<3>(&[a[0].dup(), a[1].dup(), a[2].dup()], &[b[2].dup(), b[1].dup(), b[0].dup()]);
+    // Karatsuba: compute 3 diagonal and 3 cross products.
+    let m0 = a[0].dup() * b[0].dup();
+    let m1 = a[1].dup() * b[1].dup();
+    let m2 = a[2].dup() * b[2].dup();
 
-    // High-degree coefficients
-    let c3 = R::dot_product::<2>(&[a[1].dup(), a[2].dup()], &[b[2].dup(), b[1].dup()]);
-    let c4 = a[2].dup() * b[2].dup();
+    let t01 = (a[0].dup() + a[1].dup()) * (b[0].dup() + b[1].dup());
+    let t02 = (a[0].dup() + a[2].dup()) * (b[0].dup() + b[2].dup());
+    let t12 = (a[1].dup() + a[2].dup()) * (b[1].dup() + b[2].dup());
+
+    // c3 = a1*b2 + a2*b1 = t12 - m1 - m2 (shared subexpression)
+    let c3 = t12 - m1.dup() - m2.dup();
 
     // Apply reduction: X^3 = X + 1, X^4 = X^2 + X
-    // c3 contributes: c3*1 to res[0], c3*1 to res[1]  (from x^3 = 1 + x)
-    // c4 contributes: c4*1 to res[1], c4*1 to res[2]  (from x^4 = x + x^2)
-    res[0] = c0 + c3.dup();
-    res[1] = c1 + c3 + c4.dup();
-    res[2] = c2 + c4;
+    // r0 = m0 + c3
+    res[0] = m0.dup() + c3.dup();
+    // r1 = (t01 - m0 - m1) + c3 + m2
+    res[1] = t01 + c3 + m2 - m0.dup() - m1.dup();
+    // r2 = (t02 - m0 - m2 + m1) + m2 = t02 - m0 + m1
+    res[2] = t02 - m0 + m1;
 }
 
 /// Square an element in the cubic extension field.

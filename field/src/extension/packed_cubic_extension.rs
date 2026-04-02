@@ -12,9 +12,8 @@ use p3_util::{flatten_to_base, reconstitute_from_base};
 use rand::distr::{Distribution, StandardUniform};
 use serde::{Deserialize, Serialize};
 
-use super::cubic_extension::{cubic_square, trinomial_cubic_mul};
 use super::{CubicTrinomialExtensionField, vector_add, vector_sub};
-use crate::extension::CubicTrinomialExtendable;
+use crate::extension::{CubicExtendableAlgebra, CubicTrinomialExtendable};
 use crate::{
     Algebra, BasedVectorSpace, Field, PackedField, PackedFieldExtension, PackedValue, Powers,
     PrimeCharacteristicRing, field_to_array,
@@ -88,20 +87,20 @@ where
     }
 }
 
-impl<F: CubicTrinomialExtendable, PF: PackedField<Scalar = F>>
+impl<F: CubicTrinomialExtendable, PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>>
     Algebra<CubicTrinomialExtensionField<F>> for PackedCubicTrinomialExtensionField<F, PF>
 {
 }
 
-impl<F: CubicTrinomialExtendable, PF: PackedField<Scalar = F>> Algebra<PF>
-    for PackedCubicTrinomialExtensionField<F, PF>
+impl<F: CubicTrinomialExtendable, PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>>
+    Algebra<PF> for PackedCubicTrinomialExtensionField<F, PF>
 {
 }
 
 impl<F, PF> PrimeCharacteristicRing for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type PrimeSubfield = PF::PrimeSubfield;
 
@@ -139,7 +138,7 @@ where
     #[inline(always)]
     fn square(&self) -> Self {
         let mut res = Self::default();
-        cubic_square(&self.value, &mut res.value);
+        PF::cubic_square(&self.value, &mut res.value);
         res
     }
 
@@ -163,7 +162,7 @@ where
 impl<F, PF> BasedVectorSpace<PF> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     const DIMENSION: usize = 3;
 
@@ -199,7 +198,7 @@ where
 unsafe impl<F, PF> PackedValue for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Value = CubicTrinomialExtensionField<F>;
 
@@ -248,13 +247,15 @@ where
 unsafe impl<F, PF> PackedField for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Scalar = CubicTrinomialExtensionField<F>;
 }
 
 impl<F: CubicTrinomialExtendable> PackedFieldExtension<F, CubicTrinomialExtensionField<F>>
     for PackedCubicTrinomialExtensionField<F, F::Packing>
+where
+    F::Packing: CubicExtendableAlgebra<F>
 {
     #[inline]
     fn from_ext_slice(ext_slice: &[CubicTrinomialExtensionField<F>]) -> Self {
@@ -285,7 +286,7 @@ impl<F: CubicTrinomialExtendable> PackedFieldExtension<F, CubicTrinomialExtensio
 impl<F, PF> Neg for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -298,7 +299,7 @@ where
 impl<F, PF> Add for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -311,7 +312,7 @@ where
 impl<F, PF> Add<CubicTrinomialExtensionField<F>> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -325,7 +326,7 @@ where
 impl<F, PF> Add<PF> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -339,7 +340,7 @@ where
 impl<F, PF> AddAssign for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
@@ -353,7 +354,7 @@ impl<F, PF> AddAssign<CubicTrinomialExtensionField<F>>
     for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn add_assign(&mut self, rhs: CubicTrinomialExtensionField<F>) {
@@ -366,7 +367,7 @@ where
 impl<F, PF> AddAssign<PF> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn add_assign(&mut self, rhs: PF) {
@@ -377,7 +378,7 @@ where
 impl<F, PF> Sum for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
@@ -388,7 +389,7 @@ where
 impl<F, PF> Sub for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -401,7 +402,7 @@ where
 impl<F, PF> Sub<CubicTrinomialExtensionField<F>> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -415,7 +416,7 @@ where
 impl<F, PF> Sub<PF> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -430,7 +431,7 @@ where
 impl<F, PF> SubAssign for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
@@ -442,7 +443,7 @@ impl<F, PF> SubAssign<CubicTrinomialExtensionField<F>>
     for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn sub_assign(&mut self, rhs: CubicTrinomialExtensionField<F>) {
@@ -453,7 +454,7 @@ where
 impl<F, PF> SubAssign<PF> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn sub_assign(&mut self, rhs: PF) {
@@ -464,14 +465,14 @@ where
 impl<F, PF> Mul for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
     #[inline]
     fn mul(self, rhs: Self) -> Self {
         let mut res = Self::default();
-        trinomial_cubic_mul(&self.value, &rhs.value, &mut res.value);
+        PF::cubic_mul(&self.value, &rhs.value, &mut res.value);
         res
     }
 }
@@ -479,7 +480,7 @@ where
 impl<F, PF> Mul<CubicTrinomialExtensionField<F>> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -492,7 +493,7 @@ where
 impl<F, PF> Mul<PF> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -507,7 +508,7 @@ where
 impl<F, PF> Product for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
@@ -518,7 +519,7 @@ where
 impl<F, PF> MulAssign for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn mul_assign(&mut self, rhs: Self) {
@@ -530,7 +531,7 @@ impl<F, PF> MulAssign<CubicTrinomialExtensionField<F>>
     for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn mul_assign(&mut self, rhs: CubicTrinomialExtensionField<F>) {
@@ -541,7 +542,7 @@ where
 impl<F, PF> MulAssign<PF> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn mul_assign(&mut self, rhs: PF) {
@@ -552,7 +553,7 @@ where
 impl<F, PF> Sum<CubicTrinomialExtensionField<F>> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn sum<I: Iterator<Item = CubicTrinomialExtensionField<F>>>(iter: I) -> Self {
@@ -564,7 +565,7 @@ impl<F, PF> Product<CubicTrinomialExtensionField<F>>
     for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn product<I: Iterator<Item = CubicTrinomialExtensionField<F>>>(iter: I) -> Self {
@@ -575,7 +576,7 @@ where
 impl<F, PF> Div<CubicTrinomialExtensionField<F>> for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -590,7 +591,7 @@ impl<F, PF> DivAssign<CubicTrinomialExtensionField<F>>
     for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn div_assign(&mut self, rhs: CubicTrinomialExtensionField<F>) {
@@ -601,7 +602,7 @@ where
 impl<F, PF> Div for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     type Output = Self;
 
@@ -619,7 +620,7 @@ where
 impl<F, PF> DivAssign for PackedCubicTrinomialExtensionField<F, PF>
 where
     F: CubicTrinomialExtendable,
-    PF: PackedField<Scalar = F>,
+    PF: PackedField<Scalar = F> + CubicExtendableAlgebra<F>,
 {
     #[inline]
     fn div_assign(&mut self, rhs: Self) {
