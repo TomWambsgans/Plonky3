@@ -422,6 +422,16 @@ fn bench_ext_fields() {
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 
+    let time = std::time::Instant::now();
+    for _ in 0..n / G3P::WIDTH {
+        a = a + a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks^3: {:.3}M adds/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
     let mut a = K5P::from(K5::from_usize(3));
 
     let time = std::time::Instant::now();
@@ -433,4 +443,16 @@ fn bench_ext_fields() {
         "KoalaBear^5: {:.3}M mults/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
+
+    
+    let time = std::time::Instant::now();
+    for _ in 0..n / K5P::WIDTH {
+        a = a + a;
+    }
+    let _ = black_box(a);
+    println!(
+        "KoalaBear^5: {:.3}M adds/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
 }
