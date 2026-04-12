@@ -414,7 +414,7 @@ fn bench_ext_fields() {
 
     let time = std::time::Instant::now();
     for _ in 0..n / G3P::WIDTH {
-        a *= a * a;
+        a = a * a;
     }
     let _ = black_box(a);
     println!(
@@ -426,7 +426,7 @@ fn bench_ext_fields() {
 
     let time = std::time::Instant::now();
     for _ in 0..n / K5P::WIDTH {
-        a *= a * a;
+        a = a * a;
     }
     let _ = black_box(a);
     println!(
