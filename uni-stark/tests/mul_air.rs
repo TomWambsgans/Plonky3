@@ -400,6 +400,7 @@ fn bench_fields() {
 
 #[test]
 fn bench_ext_fields() {
+    // RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-uni-stark --test mul_air -- bench_ext_fields --exact --nocapture --include-ignored
     let n = 100_000_000;
     type G3 = CubicTrinomialExtensionField<Goldilocks>;
     type K5 = QuinticTrinomialExtensionField<KoalaBear>;
