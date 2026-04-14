@@ -369,6 +369,7 @@ fn prove_m31_circle_deg3() -> Result<(), impl Debug> {
 
 #[test]
 fn bench_fields() {
+    // RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-uni-stark --test mul_air -- bench_fields --exact --nocapture --include-ignored
     let n = 10_000_000;
     assert_eq!(<Goldilocks as Field>::Packing::WIDTH, 2);
     assert_eq!(<KoalaBear as Field>::Packing::WIDTH, 4);
@@ -377,11 +378,21 @@ fn bench_fields() {
 
     let time = std::time::Instant::now();
     for _ in 0..n / <Goldilocks as Field>::Packing::WIDTH {
-        a *= a * a;
+        a = a * a;
     }
     let _ = black_box(a);
     println!(
-        "Goldilocks: {:.3}M mults/sec",
+        "Goldilocks: {:.3}M muls/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / <Goldilocks as Field>::Packing::WIDTH {
+        a = a + a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks: {:.3}M adds/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 
@@ -389,11 +400,21 @@ fn bench_fields() {
 
     let time = std::time::Instant::now();
     for _ in 0..n / <KoalaBear as Field>::Packing::WIDTH {
-        a *= a * a;
+        a = a * a;
     }
     let _ = black_box(a);
     println!(
-        "KoalaBear: {:.3}M mults/sec",
+        "KoalaBear: {:.3}M muls/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / <KoalaBear as Field>::Packing::WIDTH {
+        a = a + a;
+    }
+    let _ = black_box(a);
+    println!(
+        "KoalaBear: {:.3}M adds/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 }
@@ -418,7 +439,7 @@ fn bench_ext_fields() {
     }
     let _ = black_box(a);
     println!(
-        "Goldilocks^3: {:.3}M mults/sec",
+        "Goldilocks^3: {:.3}M muls/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 
@@ -440,11 +461,10 @@ fn bench_ext_fields() {
     }
     let _ = black_box(a);
     println!(
-        "KoalaBear^5: {:.3}M mults/sec",
+        "KoalaBear^5: {:.3}M muls/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 
-    
     let time = std::time::Instant::now();
     for _ in 0..n / K5P::WIDTH {
         a = a + a;
@@ -454,5 +474,4 @@ fn bench_ext_fields() {
         "KoalaBear^5: {:.3}M adds/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
-
 }
