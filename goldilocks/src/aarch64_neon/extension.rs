@@ -5,9 +5,6 @@
 //! pipeline), while using the efficient interleaved dual-lane ASM for
 //! multiplications. The Karatsuba algorithm reduces multiplications from 9 to 6.
 
-use core::arch::aarch64::vgetq_lane_u64;
-use core::mem::transmute;
-
 use p3_field::extension::CubicExtendableAlgebra;
 
 use super::packing::mul_reduce_dual_asm;
@@ -51,26 +48,20 @@ impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
     #[inline(always)]
     fn cubic_mul(a: &[Self; 3], b: &[Self; 3], res: &mut [Self; 3]) {
         unsafe {
-            // Extract all scalar lanes.
-            let a0 = a[0].to_vector();
-            let a1 = a[1].to_vector();
-            let a2 = a[2].to_vector();
-            let b0 = b[0].to_vector();
-            let b1 = b[1].to_vector();
-            let b2 = b[2].to_vector();
-
-            let a00 = vgetq_lane_u64::<0>(a0);
-            let a01 = vgetq_lane_u64::<1>(a0);
-            let a10 = vgetq_lane_u64::<0>(a1);
-            let a11 = vgetq_lane_u64::<1>(a1);
-            let a20 = vgetq_lane_u64::<0>(a2);
-            let a21 = vgetq_lane_u64::<1>(a2);
-            let b00 = vgetq_lane_u64::<0>(b0);
-            let b01 = vgetq_lane_u64::<1>(b0);
-            let b10 = vgetq_lane_u64::<0>(b1);
-            let b11 = vgetq_lane_u64::<1>(b1);
-            let b20 = vgetq_lane_u64::<0>(b2);
-            let b21 = vgetq_lane_u64::<1>(b2);
+            // Read scalar lanes directly from `[Goldilocks; 2]` storage to
+            // skip the umov NEON->GPR detour.
+            let a00 = a[0].0[0].value;
+            let a01 = a[0].0[1].value;
+            let a10 = a[1].0[0].value;
+            let a11 = a[1].0[1].value;
+            let a20 = a[2].0[0].value;
+            let a21 = a[2].0[1].value;
+            let b00 = b[0].0[0].value;
+            let b01 = b[0].0[1].value;
+            let b10 = b[1].0[0].value;
+            let b11 = b[1].0[1].value;
+            let b20 = b[2].0[0].value;
+            let b21 = b[2].0[1].value;
 
             // Karatsuba sums (scalar add, ~3 instr each).
             let sa01_0 = gadd(a00, a10);
@@ -112,10 +103,11 @@ impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
             let r2_0 = gadd(gsub(t02_0, m0_0), m1_0);
             let r2_1 = gadd(gsub(t02_1, m0_1), m1_1);
 
-            // Pack back into vectors.
-            res[0] = Self::from_vector(transmute([r0_0, r0_1]));
-            res[1] = Self::from_vector(transmute([r1_0, r1_1]));
-            res[2] = Self::from_vector(transmute([r2_0, r2_1]));
+            // Write straight into `[Goldilocks; 2]` storage to skip the
+            // ins GPR->NEON detour.
+            res[0] = Self([Goldilocks::new(r0_0), Goldilocks::new(r0_1)]);
+            res[1] = Self([Goldilocks::new(r1_0), Goldilocks::new(r1_1)]);
+            res[2] = Self([Goldilocks::new(r2_0), Goldilocks::new(r2_1)]);
         }
     }
 
@@ -161,16 +153,13 @@ impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
     #[inline(always)]
     fn cubic_square(a: &[Self; 3], res: &mut [Self; 3]) {
         unsafe {
-            let a0 = a[0].to_vector();
-            let a1 = a[1].to_vector();
-            let a2 = a[2].to_vector();
-
-            let a00 = vgetq_lane_u64::<0>(a0);
-            let a01 = vgetq_lane_u64::<1>(a0);
-            let a10 = vgetq_lane_u64::<0>(a1);
-            let a11 = vgetq_lane_u64::<1>(a1);
-            let a20 = vgetq_lane_u64::<0>(a2);
-            let a21 = vgetq_lane_u64::<1>(a2);
+            // Read scalar lanes directly from storage (no umov).
+            let a00 = a[0].0[0].value;
+            let a01 = a[0].0[1].value;
+            let a10 = a[1].0[0].value;
+            let a11 = a[1].0[1].value;
+            let a20 = a[2].0[0].value;
+            let a21 = a[2].0[1].value;
 
             // a0^2, a1^2, a2^2
             let (a0sq_0, a0sq_1) = mul_reduce_dual_asm(a00, a00, a01, a01);
@@ -195,9 +184,9 @@ impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
             let r2_0 = gadd(gadd(gadd(a0a2_0, a0a2_0), a1sq_0), a2sq_0);
             let r2_1 = gadd(gadd(gadd(a0a2_1, a0a2_1), a1sq_1), a2sq_1);
 
-            res[0] = Self::from_vector(transmute([r0_0, r0_1]));
-            res[1] = Self::from_vector(transmute([r1_0, r1_1]));
-            res[2] = Self::from_vector(transmute([r2_0, r2_1]));
+            res[0] = Self([Goldilocks::new(r0_0), Goldilocks::new(r0_1)]);
+            res[1] = Self([Goldilocks::new(r1_0), Goldilocks::new(r1_1)]);
+            res[2] = Self([Goldilocks::new(r2_0), Goldilocks::new(r2_1)]);
         }
     }
 }
