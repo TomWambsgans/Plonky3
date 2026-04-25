@@ -424,10 +424,10 @@ fn bench_fields() {
 fn bench_ext_fields() {
     // RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-uni-stark --test mul_air -- bench_ext_fields --exact --nocapture --include-ignored
     let n = 100_000_000;
-    type G2 = BinomialExtensionField<Goldilocks, 2>;
+    // type G2 = BinomialExtensionField<Goldilocks, 2>;
     type G3 = CubicTrinomialExtensionField<Goldilocks>;
     type K5 = QuinticTrinomialExtensionField<KoalaBear>;
-    type G2P = <G2 as ExtensionField<Goldilocks>>::ExtensionPacking;
+    // type G2P = <G2 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type K5P = <K5 as ExtensionField<KoalaBear>>::ExtensionPacking;
 
@@ -437,27 +437,27 @@ fn bench_ext_fields() {
     println!("Goldilocks packing width: {}", goldilocks_packing);
     println!("KoalaBear packing width: {}", koalabear_packing);
 
-    let mut a = G2P::from(G2::from_usize(3));
+    // let mut a = G2P::from(G2::from_usize(3));
 
-    let time = std::time::Instant::now();
-    for _ in 0..n / goldilocks_packing {
-        a = a * a;
-    }
-    let _ = black_box(a);
-    println!(
-        "Goldilocks^2: {:.3}M muls/sec",
-        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
-    );
+    // let time = std::time::Instant::now();
+    // for _ in 0..n / goldilocks_packing {
+    //     a = a * a;
+    // }
+    // let _ = black_box(a);
+    // println!(
+    //     "Goldilocks^2: {:.3}M muls/sec",
+    //     ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
+    // );
 
-    let time = std::time::Instant::now();
-    for _ in 0..n / goldilocks_packing {
-        a = a + a;
-    }
-    let _ = black_box(a);
-    println!(
-        "Goldilocks^2: {:.3}M adds/sec",
-        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
-    );
+    // let time = std::time::Instant::now();
+    // for _ in 0..n / goldilocks_packing {
+    //     a = a + a;
+    // }
+    // let _ = black_box(a);
+    // println!(
+    //     "Goldilocks^2: {:.3}M adds/sec",
+    //     ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
+    // );
 
     let mut a = G3P::from(G3::from_usize(3));
 

@@ -305,7 +305,7 @@ where
 
     #[inline]
     fn add(self, rhs: Self) -> Self {
-        Self::new(vector_add(&self.value, &rhs.value))
+        Self::new(PF::cubic_add(&self.value, &rhs.value))
     }
 }
 
@@ -395,7 +395,7 @@ where
 
     #[inline]
     fn sub(self, rhs: Self) -> Self {
-        Self::new(vector_sub(&self.value, &rhs.value))
+        Self::new(PF::cubic_sub(&self.value, &rhs.value))
     }
 }
 

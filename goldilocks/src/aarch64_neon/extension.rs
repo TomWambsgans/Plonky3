@@ -119,6 +119,42 @@ impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
         }
     }
 
+    /// Coefficient-wise add in scalar u64 space.
+    ///
+    /// Reaches into the `[Goldilocks; 2]` storage directly so the compiler can
+    /// keep all 12 input lanes in GPRs and avoid the NEON↔GPR umov/ins bounce
+    /// that the generic `vector_add` path produces here.
+    #[inline(always)]
+    fn cubic_add(a: &[Self; 3], b: &[Self; 3]) -> [Self; 3] {
+        let r0_0 = gadd(a[0].0[0].value, b[0].0[0].value);
+        let r0_1 = gadd(a[0].0[1].value, b[0].0[1].value);
+        let r1_0 = gadd(a[1].0[0].value, b[1].0[0].value);
+        let r1_1 = gadd(a[1].0[1].value, b[1].0[1].value);
+        let r2_0 = gadd(a[2].0[0].value, b[2].0[0].value);
+        let r2_1 = gadd(a[2].0[1].value, b[2].0[1].value);
+        [
+            Self([Goldilocks::new(r0_0), Goldilocks::new(r0_1)]),
+            Self([Goldilocks::new(r1_0), Goldilocks::new(r1_1)]),
+            Self([Goldilocks::new(r2_0), Goldilocks::new(r2_1)]),
+        ]
+    }
+
+    /// Coefficient-wise sub in scalar u64 space (mirror of `cubic_add`).
+    #[inline(always)]
+    fn cubic_sub(a: &[Self; 3], b: &[Self; 3]) -> [Self; 3] {
+        let r0_0 = gsub(a[0].0[0].value, b[0].0[0].value);
+        let r0_1 = gsub(a[0].0[1].value, b[0].0[1].value);
+        let r1_0 = gsub(a[1].0[0].value, b[1].0[0].value);
+        let r1_1 = gsub(a[1].0[1].value, b[1].0[1].value);
+        let r2_0 = gsub(a[2].0[0].value, b[2].0[0].value);
+        let r2_1 = gsub(a[2].0[1].value, b[2].0[1].value);
+        [
+            Self([Goldilocks::new(r0_0), Goldilocks::new(r0_1)]),
+            Self([Goldilocks::new(r1_0), Goldilocks::new(r1_1)]),
+            Self([Goldilocks::new(r2_0), Goldilocks::new(r2_1)]),
+        ]
+    }
+
     /// Squaring in scalar u64 space.
     ///
     /// Uses 3 squares + 3 multiplications with scalar add/sub for reduction.
