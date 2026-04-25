@@ -190,3 +190,134 @@ impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use p3_field::extension::{CubicExtendableAlgebra, CubicTrinomialExtensionField};
+    use p3_field::{BasedVectorSpace, PrimeCharacteristicRing};
+    use rand::rngs::SmallRng;
+    use rand::{RngExt, SeedableRng};
+
+    use super::*;
+
+    type EF = CubicTrinomialExtensionField<Goldilocks>;
+
+    fn pack(lane0: [Goldilocks; 3], lane1: [Goldilocks; 3]) -> [PackedGoldilocksNeon; 3] {
+        core::array::from_fn(|i| PackedGoldilocksNeon([lane0[i], lane1[i]]))
+    }
+
+    fn unpack(p: &[PackedGoldilocksNeon; 3]) -> ([Goldilocks; 3], [Goldilocks; 3]) {
+        (
+            [p[0].0[0], p[1].0[0], p[2].0[0]],
+            [p[0].0[1], p[1].0[1], p[2].0[1]],
+        )
+    }
+
+    fn ext_to_array(x: EF) -> [Goldilocks; 3] {
+        let s = x.as_basis_coefficients_slice();
+        [s[0], s[1], s[2]]
+    }
+
+    fn check_mul(a0: [Goldilocks; 3], a1: [Goldilocks; 3], b0: [Goldilocks; 3], b1: [Goldilocks; 3]) {
+        let a = pack(a0, a1);
+        let b = pack(b0, b1);
+        let mut got = [PackedGoldilocksNeon::ZERO; 3];
+        PackedGoldilocksNeon::cubic_mul(&a, &b, &mut got);
+
+        let want0 = ext_to_array(EF::new(a0) * EF::new(b0));
+        let want1 = ext_to_array(EF::new(a1) * EF::new(b1));
+        let (g0, g1) = unpack(&got);
+        assert_eq!(g0, want0, "cubic_mul lane 0 mismatch");
+        assert_eq!(g1, want1, "cubic_mul lane 1 mismatch");
+    }
+
+    fn check_square(a0: [Goldilocks; 3], a1: [Goldilocks; 3]) {
+        let a = pack(a0, a1);
+        let mut got = [PackedGoldilocksNeon::ZERO; 3];
+        PackedGoldilocksNeon::cubic_square(&a, &mut got);
+
+        let want0 = ext_to_array(EF::new(a0).square());
+        let want1 = ext_to_array(EF::new(a1).square());
+        let (g0, g1) = unpack(&got);
+        assert_eq!(g0, want0, "cubic_square lane 0 mismatch");
+        assert_eq!(g1, want1, "cubic_square lane 1 mismatch");
+    }
+
+    #[test]
+    fn cubic_mul_matches_scalar() {
+        // A few hand-picked values, including 0, 1, P-1, and the boundary value
+        // P = 0xFFFF_FFFF_0000_0001 (which canonicalises to 0).
+        let max = Goldilocks::new(P - 1);
+        let p_redundant = Goldilocks::new(P);
+        let cases: &[([Goldilocks; 3], [Goldilocks; 3], [Goldilocks; 3], [Goldilocks; 3])] = &[
+            (
+                [Goldilocks::new(3), Goldilocks::new(5), Goldilocks::new(7)],
+                [Goldilocks::new(11), Goldilocks::new(13), Goldilocks::new(17)],
+                [Goldilocks::new(19), Goldilocks::new(23), Goldilocks::new(29)],
+                [Goldilocks::new(31), Goldilocks::new(37), Goldilocks::new(41)],
+            ),
+            (
+                [Goldilocks::ZERO, Goldilocks::ONE, max],
+                [max, max, max],
+                [Goldilocks::ONE, Goldilocks::ZERO, Goldilocks::ONE],
+                [p_redundant, max, Goldilocks::ZERO],
+            ),
+        ];
+        for (a0, a1, b0, b1) in cases {
+            check_mul(*a0, *a1, *b0, *b1);
+        }
+
+        // Random fuzz.
+        let mut rng = SmallRng::seed_from_u64(0xC0FFEE);
+        for _ in 0..1024 {
+            let a0 = core::array::from_fn(|_| rng.random());
+            let a1 = core::array::from_fn(|_| rng.random());
+            let b0 = core::array::from_fn(|_| rng.random());
+            let b1 = core::array::from_fn(|_| rng.random());
+            check_mul(a0, a1, b0, b1);
+        }
+    }
+
+    #[test]
+    fn cubic_square_matches_scalar() {
+        let max = Goldilocks::new(P - 1);
+        let p_redundant = Goldilocks::new(P);
+        let cases: &[([Goldilocks; 3], [Goldilocks; 3])] = &[
+            (
+                [Goldilocks::new(3), Goldilocks::new(5), Goldilocks::new(7)],
+                [Goldilocks::new(11), Goldilocks::new(13), Goldilocks::new(17)],
+            ),
+            (
+                [Goldilocks::ZERO, Goldilocks::ONE, max],
+                [max, p_redundant, Goldilocks::ZERO],
+            ),
+        ];
+        for (a0, a1) in cases {
+            check_square(*a0, *a1);
+        }
+
+        // Random fuzz.
+        let mut rng = SmallRng::seed_from_u64(0xBADC0DE);
+        for _ in 0..1024 {
+            let a0 = core::array::from_fn(|_| rng.random());
+            let a1 = core::array::from_fn(|_| rng.random());
+            check_square(a0, a1);
+        }
+    }
+
+    #[test]
+    fn cubic_mul_matches_square() {
+        // x*x must equal cubic_square(x).
+        let mut rng = SmallRng::seed_from_u64(0xFEEDFACE);
+        for _ in 0..256 {
+            let a0: [Goldilocks; 3] = core::array::from_fn(|_| rng.random());
+            let a1: [Goldilocks; 3] = core::array::from_fn(|_| rng.random());
+            let a = pack(a0, a1);
+            let mut via_mul = [PackedGoldilocksNeon::ZERO; 3];
+            let mut via_sq = [PackedGoldilocksNeon::ZERO; 3];
+            PackedGoldilocksNeon::cubic_mul(&a, &a, &mut via_mul);
+            PackedGoldilocksNeon::cubic_square(&a, &mut via_sq);
+            assert_eq!(via_mul, via_sq);
+        }
+    }
+}
