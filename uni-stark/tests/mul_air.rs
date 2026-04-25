@@ -422,13 +422,38 @@ fn bench_fields() {
 fn bench_ext_fields() {
     // RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-uni-stark --test mul_air -- bench_ext_fields --exact --nocapture --include-ignored
     let n = 100_000_000;
+    type G2 = BinomialExtensionField<Goldilocks, 2>;
     type G3 = CubicTrinomialExtensionField<Goldilocks>;
     type K5 = QuinticTrinomialExtensionField<KoalaBear>;
+    type G2P = <G2 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type K5P = <K5 as ExtensionField<KoalaBear>>::ExtensionPacking;
 
     println!("Goldilocks^3 packing width: {}", G3P::WIDTH);
     println!("KoalaBear^5 packing width: {}", K5P::WIDTH);
+
+    let mut a = G2P::from(G2::from_usize(3));
+    let g2p_width = <Goldilocks as Field>::Packing::WIDTH;
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / g2p_width {
+        a = a * a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks^2: {:.3}M muls/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / g2p_width {
+        a = a + a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks^2: {:.3}M adds/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
 
     let mut a = G3P::from(G3::from_usize(3));
 
