@@ -87,19 +87,22 @@ impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
             let (t12_0, t12_1) = mul_reduce_dual_asm(sa12_0, sb12_0, sa12_1, sb12_1);
 
             // Reduction: X^3 = X + 1, X^4 = X^2 + X
-            // c3 = t12 - m1 - m2
-            let c3_0 = gsub(gsub(t12_0, m1_0), m2_0);
-            let c3_1 = gsub(gsub(t12_1, m1_1), m2_1);
+            // Algebraically:
+            //   r0 = m0 + t12 - m1 - m2
+            //   r1 = t01 + t12 - m0 - 2*m1
+            //   r2 = t02 - m0 + m1
+            // Trees below are arranged to minimise dep-chain depth (latency
+            // matters more than op count in the latency-bound bench loop).
 
-            // r0 = m0 + c3
-            let r0_0 = gadd(m0_0, c3_0);
-            let r0_1 = gadd(m0_1, c3_1);
+            // r0 = (t12 - m1) + (m0 - m2): chain depth 2
+            let r0_0 = gadd(gsub(t12_0, m1_0), gsub(m0_0, m2_0));
+            let r0_1 = gadd(gsub(t12_1, m1_1), gsub(m0_1, m2_1));
 
-            // r1 = t01 + c3 + m2 - m0 - m1
-            let r1_0 = gsub(gsub(gadd(gadd(t01_0, c3_0), m2_0), m0_0), m1_0);
-            let r1_1 = gsub(gsub(gadd(gadd(t01_1, c3_1), m2_1), m0_1), m1_1);
+            // r1 = (t01 - m1) + (t12 - m1) - m0: chain depth 3
+            let r1_0 = gsub(gadd(gsub(t01_0, m1_0), gsub(t12_0, m1_0)), m0_0);
+            let r1_1 = gsub(gadd(gsub(t01_1, m1_1), gsub(t12_1, m1_1)), m0_1);
 
-            // r2 = t02 - m0 + m1
+            // r2 = (t02 - m0) + m1: chain depth 2
             let r2_0 = gadd(gsub(t02_0, m0_0), m1_0);
             let r2_1 = gadd(gsub(t02_1, m0_1), m1_1);
 
