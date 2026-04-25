@@ -10,8 +10,10 @@ use p3_circle::CirclePcs;
 use p3_commit::ExtensionMmcs;
 use p3_commit::testing::TrivialPcs;
 use p3_dft::Radix2DitParallel;
+use p3_field::extension::{
+    BinomialExtensionField, CubicTrinomialExtensionField, QuinticTrinomialExtensionField,
+};
 use p3_field::{ExtensionField, PackedValue};
-use p3_field::extension::{BinomialExtensionField, CubicTrinomialExtensionField, QuinticTrinomialExtensionField};
 use p3_field::{Field, PrimeCharacteristicRing};
 use p3_fri::{FriParameters, HidingFriPcs, TwoAdicFriPcs};
 use p3_goldilocks::Goldilocks;
@@ -429,73 +431,75 @@ fn bench_ext_fields() {
     type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type K5P = <K5 as ExtensionField<KoalaBear>>::ExtensionPacking;
 
-    println!("Goldilocks^3 packing width: {}", G3P::WIDTH);
-    println!("KoalaBear^5 packing width: {}", K5P::WIDTH);
+    let goldilocks_packing = <Goldilocks as Field>::Packing::WIDTH;
+    let koalabear_packing = <KoalaBear as Field>::Packing::WIDTH;
+
+    println!("Goldilocks packing width: {}", goldilocks_packing);
+    println!("KoalaBear packing width: {}", koalabear_packing);
 
     let mut a = G2P::from(G2::from_usize(3));
-    let g2p_width = <Goldilocks as Field>::Packing::WIDTH;
 
     let time = std::time::Instant::now();
-    for _ in 0..n / g2p_width {
+    for _ in 0..n / goldilocks_packing {
         a = a * a;
     }
     let _ = black_box(a);
     println!(
         "Goldilocks^2: {:.3}M muls/sec",
-        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
     );
 
     let time = std::time::Instant::now();
-    for _ in 0..n / g2p_width {
+    for _ in 0..n / goldilocks_packing {
         a = a + a;
     }
     let _ = black_box(a);
     println!(
         "Goldilocks^2: {:.3}M adds/sec",
-        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
     );
 
     let mut a = G3P::from(G3::from_usize(3));
 
     let time = std::time::Instant::now();
-    for _ in 0..n / G3P::WIDTH {
+    for _ in 0..n / goldilocks_packing {
         a = a * a;
     }
     let _ = black_box(a);
     println!(
-        "Goldilocks^3: {:.3}M muls/sec",
-        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+        "Goldilocks^3: {}M muls/sec",
+        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
     );
 
     let time = std::time::Instant::now();
-    for _ in 0..n / G3P::WIDTH {
+    for _ in 0..n / goldilocks_packing {
         a = a + a;
     }
     let _ = black_box(a);
     println!(
         "Goldilocks^3: {:.3}M adds/sec",
-        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
     );
 
     let mut a = K5P::from(K5::from_usize(3));
 
     let time = std::time::Instant::now();
-    for _ in 0..n / K5P::WIDTH {
+    for _ in 0..n / koalabear_packing {
         a = a * a;
     }
     let _ = black_box(a);
     println!(
         "KoalaBear^5: {:.3}M muls/sec",
-        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
     );
 
     let time = std::time::Instant::now();
-    for _ in 0..n / K5P::WIDTH {
+    for _ in 0..n / koalabear_packing {
         a = a + a;
     }
     let _ = black_box(a);
     println!(
         "KoalaBear^5: {:.3}M adds/sec",
-        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+        ((n as f64 / time.elapsed().as_secs_f64()) / 1e6) as usize
     );
 }
