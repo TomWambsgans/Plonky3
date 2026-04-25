@@ -180,6 +180,7 @@ mod test_quadratic_extension {
         &super::PACKED_ZEROS,
         &super::PACKED_ONES
     );
+    p3_field_testing::test_packed_binomial_extension_division!(F, 2);
 }
 
 #[cfg(test)]
@@ -240,6 +241,7 @@ mod test_quintic_extension {
         &super::PACKED_ZEROS,
         &super::PACKED_ONES
     );
+    p3_field_testing::test_packed_binomial_extension_division!(F, 5);
 }
 
 #[cfg(test)]
