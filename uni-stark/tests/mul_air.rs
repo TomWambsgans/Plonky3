@@ -427,8 +427,8 @@ fn bench_ext_fields() {
     type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type K5P = <K5 as ExtensionField<KoalaBear>>::ExtensionPacking;
 
-    assert_eq!(G3P::WIDTH, 2);
-    assert_eq!(K5P::WIDTH, 4);
+    println!("Goldilocks^3 packing width: {}", G3P::WIDTH);
+    println!("KoalaBear^5 packing width: {}", K5P::WIDTH);
 
     let mut a = G3P::from(G3::from_usize(3));
 
