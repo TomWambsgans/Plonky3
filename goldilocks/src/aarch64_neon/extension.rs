@@ -7,55 +7,11 @@
 
 use p3_field::extension::CubicExtendableAlgebra;
 
+use super::packing::{gadd, gsub, mul_reduce};
 use super::PackedGoldilocksNeon;
-use crate::{Goldilocks, P};
-
-const EPSILON: u64 = P.wrapping_neg(); // 2^32 - 1
-
-/// Goldilocks scalar addition: (a + b) mod P.
-/// Handles u64 overflow via EPSILON correction.
-#[inline(always)]
-const fn gadd(a: u64, b: u64) -> u64 {
-    let (sum, overflow) = a.overflowing_add(b);
-    let (res, _) = sum.overflowing_add(if overflow { EPSILON } else { 0 });
-    res
-}
-
-/// Goldilocks scalar subtraction: (a - b) mod P.
-/// Handles u64 underflow via EPSILON correction.
-#[inline(always)]
-const fn gsub(a: u64, b: u64) -> u64 {
-    let (diff, borrow) = a.overflowing_sub(b);
-    let (res, _) = diff.overflowing_sub(if borrow { EPSILON } else { 0 });
-    res
-}
-
-/// Single Goldilocks 64x64->64 mul + reduction in pure Rust.
-///
-/// Equivalent to `mul_reduce_dual_asm` for one lane, but as plain LLVM IR
-/// rather than an opaque inline-asm block. With 6 of these per `cubic_mul`,
-/// the compiler can interleave instructions across all 12 lane-products
-/// instead of serialising them into 6 fixed-order asm chunks.
-#[inline(always)]
-const fn mul_reduce(a: u64, b: u64) -> u64 {
-    let prod = (a as u128) * (b as u128);
-    let lo = prod as u64;
-    let hi = (prod >> 64) as u64;
-
-    let hi_hi = hi >> 32;
-    let hi_lo = hi & 0xFFFF_FFFF;
-
-    // tmp = lo - hi_hi; if it borrowed, subtract EPSILON to fold P back in.
-    let (tmp_pre, borrow) = lo.overflowing_sub(hi_hi);
-    let tmp = tmp_pre.wrapping_sub(if borrow { EPSILON } else { 0 });
-
-    // hi_lo * (2^32 - 1) avoiding a multiply.
-    let hi_lo_eps = (hi_lo << 32).wrapping_sub(hi_lo);
-
-    // result = tmp + hi_lo_eps; if it overflowed 2^64, add EPSILON.
-    let (res_pre, overflow) = tmp.overflowing_add(hi_lo_eps);
-    res_pre.wrapping_add(if overflow { EPSILON } else { 0 })
-}
+#[cfg(test)]
+use crate::P;
+use crate::Goldilocks;
 
 impl CubicExtendableAlgebra<Goldilocks> for PackedGoldilocksNeon {
     /// Karatsuba multiplication operating in scalar u64 space.
