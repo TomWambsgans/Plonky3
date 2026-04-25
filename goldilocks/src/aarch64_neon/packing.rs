@@ -205,7 +205,6 @@ unsafe impl PackedFieldPow2 for PackedGoldilocksNeon {
     }
 }
 
-
 /// Halve a vector of Goldilocks field elements.
 #[inline(always)]
 pub(crate) fn halve(input: uint64x2_t) -> uint64x2_t {

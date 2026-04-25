@@ -305,7 +305,9 @@ mod test_cubic_extension {
 
 #[cfg(test)]
 mod test_cubic_extension_arithmetic {
-    use p3_field::extension::{CubicTrinomialExtendable, CubicTrinomialExtensionField, HasFrobenius};
+    use p3_field::extension::{
+        CubicTrinomialExtendable, CubicTrinomialExtensionField, HasFrobenius,
+    };
     use p3_field::{Field, PrimeCharacteristicRing};
 
     use crate::Goldilocks;
@@ -348,9 +350,9 @@ mod test_cubic_extension_arithmetic {
     #[test]
     fn verify_reduction_rules() {
         let x = EF::new([F::ZERO, F::ONE, F::ZERO]);
-        assert_eq!(x * x, EF::new([F::ZERO, F::ZERO, F::ONE]));         // x^2
-        assert_eq!(x * x * x, EF::new([F::ONE, F::ONE, F::ZERO]));      // x^3 = x + 1
-        assert_eq!(x * x * x * x, EF::new([F::ZERO, F::ONE, F::ONE]));  // x^4 = x^2 + x
+        assert_eq!(x * x, EF::new([F::ZERO, F::ZERO, F::ONE])); // x^2
+        assert_eq!(x * x * x, EF::new([F::ONE, F::ONE, F::ZERO])); // x^3 = x + 1
+        assert_eq!(x * x * x * x, EF::new([F::ZERO, F::ONE, F::ONE])); // x^4 = x^2 + x
     }
 
     #[test]
