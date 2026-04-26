@@ -71,6 +71,52 @@ pub(super) const fn mul_reduce(a: u64, b: u64) -> u64 {
     res_pre.wrapping_add(if overflow { EPSILON } else { 0 })
 }
 
+/// Hand-scheduled inline-asm variant of [`mul_reduce`], tuned for the
+/// **scalar / single-lane Mul** path on aarch64.
+///
+/// Saves one ALU op vs the LLVM-emitted form by collapsing `lsr+subs` into
+/// the shifted-register `subs xT, lo, hi, lsr #32` form.
+///
+/// Only used where each `Mul` produces one or two products (e.g.
+/// `Mul for PackedGoldilocksNeon`); inside `cubic_mul` the pure-Rust
+/// version is preferred so LLVM can interleave the 12 lane-products across
+/// each other.
+#[cfg(target_arch = "aarch64")]
+#[inline(always)]
+pub(super) fn mul_reduce_asm(a: u64, b: u64) -> u64 {
+    let result: u64;
+    // SAFETY: the asm block performs only integer ALU ops and is marked
+    // `pure, nomem, nostack`, so LLVM is free to schedule, CSE, and DCE.
+    unsafe {
+        core::arch::asm!(
+            "mul     {lo},        {a},  {b}",
+            "umulh   {hi},        {a},  {b}",
+            "subs    {tmp},       {lo}, {hi}, lsr #32",
+            "csel    {corr1},     {p},  xzr,  lo",
+            "add     {tmp},       {corr1}, {tmp}",
+            "lsl     {hi_lo_eps}, {hi}, #32",
+            "sub     {hi_lo_eps}, {hi_lo_eps}, {hi:w}, uxtw",
+            "adds    {res},       {tmp}, {hi_lo_eps}",
+            "csel    {corr2},     {eps}, xzr,  hs",
+            "add     {result},    {corr2}, {res}",
+            a = in(reg) a,
+            b = in(reg) b,
+            lo = out(reg) _,
+            hi = out(reg) _,
+            tmp = out(reg) _,
+            corr1 = out(reg) _,
+            hi_lo_eps = out(reg) _,
+            res = out(reg) _,
+            corr2 = out(reg) _,
+            result = lateout(reg) result,
+            p = in(reg) Goldilocks::ORDER_U64,
+            eps = in(reg) EPSILON,
+            options(pure, nomem, nostack),
+        );
+    }
+    result
+}
+
 /// Vectorized NEON implementation of `Goldilocks` arithmetic.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 #[repr(transparent)]
@@ -135,13 +181,14 @@ impl Mul for PackedGoldilocksNeon {
     type Output = Self;
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        // Pure-scalar mul. Each `PackedGoldilocksNeon` is two `u64`s in
-        // memory; reading them directly avoids the NEON umov bounce, and
-        // pure-Rust `mul_reduce` lets LLVM interleave instructions across
-        // the two lanes instead of serialising them in an asm block.
+        // Hand-scheduled `mul_reduce_asm` saves one ALU op per lane vs
+        // what LLVM emits from the pure-Rust source (collapses `lsr+subs`
+        // into the shifted-register `subs` form). Inside `cubic_mul` we
+        // stick to the pure-Rust form so LLVM can interleave 12 products,
+        // but here there's only one product per lane so the asm wins.
         Self([
-            Goldilocks::new(mul_reduce(self.0[0].value, rhs.0[0].value)),
-            Goldilocks::new(mul_reduce(self.0[1].value, rhs.0[1].value)),
+            Goldilocks::new(mul_reduce_asm(self.0[0].value, rhs.0[0].value)),
+            Goldilocks::new(mul_reduce_asm(self.0[1].value, rhs.0[1].value)),
         ])
     }
 }
@@ -181,12 +228,13 @@ impl PrimeCharacteristicRing for PackedGoldilocksNeon {
 
     #[inline]
     fn square(&self) -> Self {
-        // Same rationale as `Mul`: pure-scalar avoids NEON↔GPR moves.
+        // Same rationale as `Mul`: scalar reduction avoids NEON↔GPR moves
+        // and the inline-asm form trims one ALU op per lane.
         let x0 = self.0[0].value;
         let x1 = self.0[1].value;
         Self([
-            Goldilocks::new(mul_reduce(x0, x0)),
-            Goldilocks::new(mul_reduce(x1, x1)),
+            Goldilocks::new(mul_reduce_asm(x0, x0)),
+            Goldilocks::new(mul_reduce_asm(x1, x1)),
         ])
     }
 
