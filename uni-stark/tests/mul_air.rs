@@ -424,6 +424,8 @@ fn bench_fields() {
 fn bench_ext_fields() {
     // RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-uni-stark --test mul_air -- bench_ext_fields --exact --nocapture --include-ignored
     let n = 100_000_000;
+    const SCALAR_SLICE_LEN: usize = 256;
+
     type G3 = CubicTrinomialExtensionField<Goldilocks>;
     type K5 = QuinticTrinomialExtensionField<KoalaBear>;
     type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
@@ -437,41 +439,68 @@ fn bench_ext_fields() {
     println!("Goldilocks packing width: {}", g_w);
     println!("KoalaBear packing width: {}", k_w);
 
-    fn bench<T: Copy>(n: usize, width: usize, init: T, mut step: impl FnMut(T) -> T) -> f64 {
-        let mut a = init;
+    fn bench_pairwise<TA, TB, TR>(
+        n_total: usize,
+        width: usize,
+        slice_a: &[TA],
+        slice_b: &[TB],
+        slice_out: &mut [TR],
+        mut step: impl FnMut(TA, TB) -> TR,
+    ) -> f64
+    where
+        TA: Copy,
+        TB: Copy,
+        TR: Copy,
+    {
+        let slice_len = slice_a.len();
+        assert_eq!(slice_b.len(), slice_len);
+        assert_eq!(slice_out.len(), slice_len);
+        let outer_iters = n_total / (slice_len * width);
         let t = std::time::Instant::now();
-        for _ in 0..n / width {
-            a = step(a);
+        for _ in 0..outer_iters {
+            for i in 0..slice_len {
+                slice_out[i] = step(slice_a[i], slice_b[i]);
+            }
+            let _ = black_box(&slice_out);
         }
-        let _ = black_box(a);
-        (n as f64 / t.elapsed().as_secs_f64()) / 1e6
+        let elapsed = t.elapsed().as_secs_f64();
+        let total_scalar = outer_iters * slice_len * width;
+        (total_scalar as f64 / elapsed) / 1e6
     }
 
-    // Operand setup. `b` values are passed through `black_box` so the optimizer
-    // cannot constant-fold them away inside the loop.
-    let g3_a = G3P::from(G3::from_usize(3));
-    let g3_b = black_box(G3P::from(G3::from_usize(7)));
-    let gp_a = GP::from(Goldilocks::from_usize(3));
-    let gp_b = black_box(GP::from(Goldilocks::from_usize(7)));
+    let mut rng = SmallRng::seed_from_u64(0xC0FFEE);
 
-    let k5_a = K5P::from(K5::from_usize(3));
-    let k5_b = black_box(K5P::from(K5::from_usize(7)));
-    let kp_a = KP::from(KoalaBear::from_usize(3));
-    let kp_b = black_box(KP::from(KoalaBear::from_usize(7)));
+    let g_packed_len = SCALAR_SLICE_LEN / g_w;
+    let k_packed_len = SCALAR_SLICE_LEN / k_w;
+
+    let g3_a: Vec<G3P> = (0..g_packed_len).map(|_| rng.random()).collect();
+    let g3_b: Vec<G3P> = (0..g_packed_len).map(|_| rng.random()).collect();
+    let gp_a: Vec<GP> = (0..g_packed_len).map(|_| rng.random()).collect();
+    let gp_b: Vec<GP> = (0..g_packed_len).map(|_| rng.random()).collect();
+
+    let k5_a: Vec<K5P> = (0..k_packed_len).map(|_| rng.random()).collect();
+    let k5_b: Vec<K5P> = (0..k_packed_len).map(|_| rng.random()).collect();
+    let kp_a: Vec<KP> = (0..k_packed_len).map(|_| rng.random()).collect();
+    let kp_b: Vec<KP> = (0..k_packed_len).map(|_| rng.random()).collect();
+
+    let mut g3_out: Vec<G3P> = vec![G3P::ZERO; g_packed_len];
+    let mut gp_out: Vec<GP> = vec![GP::ZERO; g_packed_len];
+    let mut k5_out: Vec<K5P> = vec![K5P::ZERO; k_packed_len];
+    let mut kp_out: Vec<KP> = vec![KP::ZERO; k_packed_len];
 
     // Goldilocks measurements.
-    let g3_ext_mul = bench(n, g_w, g3_a, |a| a * g3_b);
-    let g3_base_mul = bench(n, g_w, g3_a, |a| a * gp_b);
-    let g3_ext_add = bench(n, g_w, g3_a, |a| a + g3_b);
-    let g_base_mul = bench(n, g_w, gp_a, |a| a * gp_b);
-    let g_base_add = bench(n, g_w, gp_a, |a| a + gp_b);
+    let g3_ext_mul = bench_pairwise(n, g_w, &g3_a, &g3_b, &mut g3_out, |a, b| a * b);
+    let g3_base_mul = bench_pairwise(n, g_w, &g3_a, &gp_b, &mut g3_out, |a, b| a * b);
+    let g3_ext_add = bench_pairwise(n, g_w, &g3_a, &g3_b, &mut g3_out, |a, b| a + b);
+    let g_base_mul = bench_pairwise(n, g_w, &gp_a, &gp_b, &mut gp_out, |a, b| a * b);
+    let g_base_add = bench_pairwise(n, g_w, &gp_a, &gp_b, &mut gp_out, |a, b| a + b);
 
     // KoalaBear measurements.
-    let k5_ext_mul = bench(n, k_w, k5_a, |a| a * k5_b);
-    let k5_base_mul = bench(n, k_w, k5_a, |a| a * kp_b);
-    let k5_ext_add = bench(n, k_w, k5_a, |a| a + k5_b);
-    let k_base_mul = bench(n, k_w, kp_a, |a| a * kp_b);
-    let k_base_add = bench(n, k_w, kp_a, |a| a + kp_b);
+    let k5_ext_mul = bench_pairwise(n, k_w, &k5_a, &k5_b, &mut k5_out, |a, b| a * b);
+    let k5_base_mul = bench_pairwise(n, k_w, &k5_a, &kp_b, &mut k5_out, |a, b| a * b);
+    let k5_ext_add = bench_pairwise(n, k_w, &k5_a, &k5_b, &mut k5_out, |a, b| a + b);
+    let k_base_mul = bench_pairwise(n, k_w, &kp_a, &kp_b, &mut kp_out, |a, b| a * b);
+    let k_base_add = bench_pairwise(n, k_w, &kp_a, &kp_b, &mut kp_out, |a, b| a + b);
 
     let rows: [(&str, f64, f64); 5] = [
         ("ext * ext  ", g3_ext_mul, k5_ext_mul),
