@@ -423,7 +423,7 @@ fn bench_fields() {
 #[test]
 fn bench_ext_fields() {
     // RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-uni-stark --test mul_air -- bench_ext_fields --exact --nocapture --include-ignored
-    let n = 100_000_000;
+    let n = 500_000_000;
     const SCALAR_SLICE_LEN: usize = 256;
 
     type G3 = CubicTrinomialExtensionField<Goldilocks>;
