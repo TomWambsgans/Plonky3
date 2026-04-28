@@ -1,10 +1,12 @@
 use alloc::vec;
 use alloc::vec::Vec;
+use p3_field::extension::CubicTrinomialExtensionField;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, fmt};
+use std::hint::black_box;
 
 use num_bigint::BigUint;
 use p3_challenger::UniformSamplingField;
@@ -809,5 +811,49 @@ mod tests {
         crate::Goldilocks,
         super::EF,
         p3_dft::Radix2DitParallel<crate::Goldilocks>
+    );
+}
+
+
+#[test]
+fn bench_goldilocks_3() {
+    // step 1: remove "#![no_std]" from lib.rs
+    // step 2: run: RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-goldilocks --lib -- goldilocks::bench_goldilocks_3 --exact --nocapture --include-ignored
+
+    use p3_field::BasedVectorSpace;
+    use p3_field::ExtensionField;
+    use p3_field::PackedValue;
+
+    let n = 1000_000_000;
+
+    type G = Goldilocks;
+    type GP = <Goldilocks as Field>::Packing;
+    type G2 = CubicTrinomialExtensionField<Goldilocks>;
+    type G2P = <G2 as ExtensionField<Goldilocks>>::ExtensionPacking;
+
+    println!("Goldilocks packing width: {}", GP::WIDTH);
+
+    let mut a = G2P::from(
+        G2::from_basis_coefficients_slice(&[G::from_usize(3), G::from_usize(4), G::from_usize(5)]).unwrap(),
+    );
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / GP::WIDTH {
+        a = a * a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks^2: {:.3}M muls/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
+    );
+
+    let time = std::time::Instant::now();
+    for _ in 0..n / GP::WIDTH {
+        a = a + a;
+    }
+    let _ = black_box(a);
+    println!(
+        "Goldilocks^2: {:.3}M adds/sec",
+        (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 }
