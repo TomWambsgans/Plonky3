@@ -843,7 +843,7 @@ fn bench_goldilocks_3() {
     }
     let _ = black_box(a);
     println!(
-        "Goldilocks^2: {:.3}M muls/sec",
+        "Goldilocks^3: {:.3}M muls/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 
@@ -853,7 +853,7 @@ fn bench_goldilocks_3() {
     }
     let _ = black_box(a);
     println!(
-        "Goldilocks^2: {:.3}M adds/sec",
+        "Goldilocks^3: {:.3}M adds/sec",
         (n as f64 / time.elapsed().as_secs_f64()) / 1e6
     );
 }
