@@ -77,19 +77,24 @@ where
     }
 }
 
-impl<F: BinomiallyExtendable<D>, PF: PackedField<Scalar = F>, const D: usize>
-    Algebra<BinomialExtensionField<F, D>> for PackedBinomialExtensionField<F, PF, D>
+impl<F, PF, const D: usize> Algebra<BinomialExtensionField<F, D>>
+    for PackedBinomialExtensionField<F, PF, D>
+where
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
+    PF: PackedField<Scalar = F>,
 {
 }
 
-impl<F: BinomiallyExtendable<D>, PF: PackedField<Scalar = F>, const D: usize> Algebra<PF>
-    for PackedBinomialExtensionField<F, PF, D>
+impl<F, PF, const D: usize> Algebra<PF> for PackedBinomialExtensionField<F, PF, D>
+where
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
+    PF: PackedField<Scalar = F>,
 {
 }
 
 impl<F, PF, const D: usize> PrimeCharacteristicRing for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type PrimeSubfield = PF::PrimeSubfield;
@@ -152,7 +157,7 @@ where
 
 impl<F, PF, const D: usize> BasedVectorSpace<PF> for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     const DIMENSION: usize = D;
@@ -225,7 +230,7 @@ where
 
 impl<F, PF, const D: usize> Neg for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -240,7 +245,7 @@ where
 
 impl<F, PF, const D: usize> Add for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -255,7 +260,7 @@ where
 impl<F, PF, const D: usize> Add<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -269,7 +274,7 @@ where
 
 impl<F, PF, const D: usize> Add<PF> for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -283,7 +288,7 @@ where
 
 impl<F, PF, const D: usize> AddAssign for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -297,7 +302,7 @@ where
 impl<F, PF, const D: usize> AddAssign<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -310,7 +315,7 @@ where
 
 impl<F, PF, const D: usize> AddAssign<PF> for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -321,7 +326,7 @@ where
 
 impl<F, PF, const D: usize> Sum for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -332,7 +337,7 @@ where
 
 impl<F, PF, const D: usize> Sub for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -347,7 +352,7 @@ where
 impl<F, PF, const D: usize> Sub<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -361,7 +366,7 @@ where
 
 impl<F, PF, const D: usize> Sub<PF> for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -376,7 +381,7 @@ where
 
 impl<F, PF, const D: usize> SubAssign for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -388,7 +393,7 @@ where
 impl<F, PF, const D: usize> SubAssign<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -399,7 +404,7 @@ where
 
 impl<F, PF, const D: usize> SubAssign<PF> for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -410,20 +415,15 @@ where
 
 impl<F, PF, const D: usize> Mul for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
 
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        let a = self.value;
-        let b = rhs.value;
         let mut res = Self::default();
-        let w = F::W;
-
-        binomial_mul::<F, PF, PF, D>(&a, &b, &mut res.value, w);
-
+        F::packed_binomial_mul(&self.value, &rhs.value, &mut res.value);
         res
     }
 }
@@ -431,7 +431,7 @@ where
 impl<F, PF, const D: usize> Mul<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -451,7 +451,7 @@ where
 
 impl<F, PF, const D: usize> Mul<PF> for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -466,7 +466,7 @@ where
 
 impl<F, PF, const D: usize> Product for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -477,7 +477,7 @@ where
 
 impl<F, PF, const D: usize> MulAssign for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -489,7 +489,7 @@ where
 impl<F, PF, const D: usize> MulAssign<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -500,7 +500,7 @@ where
 
 impl<F, PF, const D: usize> MulAssign<PF> for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -512,7 +512,7 @@ where
 impl<F, PF, const D: usize> Div<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -527,7 +527,7 @@ where
 impl<F, PF, const D: usize> DivAssign<BinomialExtensionField<F, D>>
     for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]
@@ -538,7 +538,7 @@ where
 
 impl<F, PF, const D: usize> Div for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     type Output = Self;
@@ -631,7 +631,7 @@ where
 
 impl<F, PF, const D: usize> DivAssign for PackedBinomialExtensionField<F, PF, D>
 where
-    F: BinomiallyExtendable<D>,
+    F: BinomiallyExtendable<D> + Field<Packing = PF>,
     PF: PackedField<Scalar = F>,
 {
     #[inline]

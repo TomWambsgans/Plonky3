@@ -45,6 +45,12 @@ pub(super) const fn gsub(a: u64, b: u64) -> u64 {
     res
 }
 
+/// Goldilocks scalar doubling: (2*a) mod P. One add + a single conditional subtract.
+#[inline(always)]
+pub(super) const fn gdouble(a: u64) -> u64 {
+    gadd(a, a)
+}
+
 /// Single Goldilocks 64x64->64 mul + reduction in pure Rust.
 ///
 /// LLVM emits `mul + umulh + 10-op reduction`, just like the inline-asm
@@ -78,9 +84,9 @@ pub(super) const fn mul_reduce(a: u64, b: u64) -> u64 {
 /// the shifted-register `subs xT, lo, hi, lsr #32` form.
 ///
 /// Only used where each `Mul` produces one or two products (e.g.
-/// `Mul for PackedGoldilocksNeon`); inside `cubic_mul` the pure-Rust
-/// version is preferred so LLVM can interleave the 12 lane-products across
-/// each other.
+/// `Mul for PackedGoldilocksNeon`); inside the cubic-extension `mul`
+/// the pure-Rust version is preferred so LLVM can interleave the 12
+/// lane-products across each other.
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
 pub(super) fn mul_reduce_asm(a: u64, b: u64) -> u64 {

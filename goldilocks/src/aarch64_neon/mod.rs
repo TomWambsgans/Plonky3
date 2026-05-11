@@ -1,4 +1,4 @@
-mod extension;
+pub(crate) mod extension;
 mod mds;
 mod packing;
 mod poseidon1;
