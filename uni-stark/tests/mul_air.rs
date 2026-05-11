@@ -10,7 +10,9 @@ use p3_circle::CirclePcs;
 use p3_commit::ExtensionMmcs;
 use p3_commit::testing::TrivialPcs;
 use p3_dft::Radix2DitParallel;
-use p3_field::extension::{BinomialExtensionField, QuinticTrinomialExtensionField};
+use p3_field::extension::{
+    BinomialExtensionField, CubicTrinomialExtensionField, QuinticTrinomialExtensionField,
+};
 use p3_field::{ExtensionField, PackedValue};
 use p3_field::{Field, PrimeCharacteristicRing};
 use p3_fri::{FriParameters, HidingFriPcs, TwoAdicFriPcs};
@@ -424,7 +426,7 @@ fn bench_ext_fields() {
     let n = 500_000_000;
     const SCALAR_SLICE_LEN: usize = 256;
 
-    type G3 = BinomialExtensionField<Goldilocks, 3>;
+    type G3 = CubicTrinomialExtensionField<Goldilocks>;
     type K5 = QuinticTrinomialExtensionField<KoalaBear>;
     type G3P = <G3 as ExtensionField<Goldilocks>>::ExtensionPacking;
     type K5P = <K5 as ExtensionField<KoalaBear>>::ExtensionPacking;

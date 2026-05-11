@@ -1,10 +1,12 @@
 use alloc::vec;
 use alloc::vec::Vec;
+use p3_field::extension::CubicTrinomialExtensionField;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::{array, fmt};
+use std::hint::black_box;
 
 use num_bigint::BigUint;
 use p3_challenger::UniformSamplingField;
@@ -818,18 +820,15 @@ fn bench_goldilocks_3() {
     // step 1: remove "#![no_std]" from lib.rs
     // step 2: run: RUSTFLAGS='-C target-cpu=native' cargo test --release --package p3-goldilocks --lib -- goldilocks::bench_goldilocks_3 --exact --nocapture --include-ignored
 
-    use std::hint::black_box;
-
     use p3_field::BasedVectorSpace;
     use p3_field::ExtensionField;
     use p3_field::PackedValue;
-    use p3_field::extension::BinomialExtensionField;
 
     let n = 1000_000_000;
 
     type G = Goldilocks;
     type GP = <Goldilocks as Field>::Packing;
-    type G2 = BinomialExtensionField<Goldilocks, 3>;
+    type G2 = CubicTrinomialExtensionField<Goldilocks>;
     type G2P = <G2 as ExtensionField<Goldilocks>>::ExtensionPacking;
 
     println!("Goldilocks packing width: {}", GP::WIDTH);
